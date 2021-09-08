@@ -133,12 +133,12 @@ version_ge()
 #检查脚本更新
 check_script_update()
 {
-    [ "$(md5sum "${BASH_SOURCE[0]}" | awk '{print $1}')" == "$(md5sum <(wget -O - "https://github.com/kirin10000/Xray-script/raw/main/Xray-TLS+Web-setup.sh") | awk '{print $1}')" ] && return 1 || return 0
+    [ "$(md5sum "${BASH_SOURCE[0]}" | awk '{print $1}')" == "$(md5sum <(wget -O - "https://github.com/daoini/Xray-script/raw/main/Xray-TLS+Web-setup.sh") | awk '{print $1}')" ] && return 1 || return 0
 }
 #更新脚本
 update_script()
 {
-    if wget -O "${BASH_SOURCE[0]}" "https://github.com/kirin10000/Xray-script/raw/main/Xray-TLS+Web-setup.sh" || wget -O "${BASH_SOURCE[0]}" "https://github.com/kirin10000/Xray-script/raw/main/Xray-TLS+Web-setup.sh"; then
+    if wget -O "${BASH_SOURCE[0]}" "https://github.com/daoini/Xray-script/raw/main/Xray-TLS+Web-setup.sh" || wget -O "${BASH_SOURCE[0]}" "https://github.com/daoini/Xray-script/raw/main/Xray-TLS+Web-setup.sh"; then
         green "脚本更新完成，请重新运行脚本！"
         exit 0
     else
@@ -190,7 +190,7 @@ install_dependence()
             $debian_package_manager -y -f install
             if ! $debian_package_manager -y --no-install-recommends install "$@"; then
                 yellow "依赖安装失败！！"
-                green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+                green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
                 yellow "按回车键继续或者Ctrl+c退出"
                 read -s
             fi
@@ -214,7 +214,7 @@ install_dependence()
                 return 0
             fi
             yellow "依赖安装失败！！"
-            green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+            green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
             yellow "按回车键继续或者Ctrl+c退出"
             read -s
         fi
@@ -281,7 +281,7 @@ swap_on()
 {
     if [ $using_swap_now -ne 0 ]; then
         red    "开启swap错误发生"
-        green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+        green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
         yellow "按回车键继续或者Ctrl+c退出"
         read -s
     fi
@@ -294,7 +294,7 @@ swap_on()
             rm -rf ${temp_dir}/swap
             red    "开启swap失败！"
             yellow "可能是机器内存和硬盘空间都不足"
-            green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+            green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
             yellow "按回车键继续或者Ctrl+c退出"
             read -s
         fi
@@ -308,7 +308,7 @@ swap_off()
             using_swap_now=0
         else
             red    "关闭swap失败！"
-            green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的
+            green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的
 支持"
             yellow "按回车键继续或者Ctrl+c退出"
             read -s
@@ -686,7 +686,7 @@ check_nginx_installed_system()
     fi
     red "卸载失败！"
     yellow "请尝试更换系统，建议使用Ubuntu最新版系统"
-    green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+    green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
     exit 1
 }
 
@@ -1412,7 +1412,7 @@ readProtocolConfig()
     echo
     blue   " 注："
     blue   "   1. 不知道什么是CDN或不使用CDN，请选择TCP"
-    blue   "   2. gRPC和WebSocket支持通过CDN，关于两者的区别，详见：https://github.com/kirin10000/Xray-script#关于grpc与websocket"
+    blue   "   2. gRPC和WebSocket支持通过CDN，关于两者的区别，详见：https://github.com/daoini/Xray-script#关于grpc与websocket"
     blue   "   3. 只有TCP能使用XTLS，且XTLS完全兼容TLS"
     blue   "   4. 能使用TCP传输的只有VLESS"
     echo
@@ -1488,7 +1488,7 @@ readPretend()
         green  " 128MB<=内存<1G 建议选择 Cloudreve"
         green  " 内存>=1G 建议选择 Nextcloud 或 Cloudreve"
         echo
-        yellow " 关于选择伪装网站的详细说明见：https://github.com/kirin10000/Xray-script#伪装网站说明"
+        yellow " 关于选择伪装网站的详细说明见：https://github.com/daoini/Xray-script#伪装网站说明"
         echo
         pretend=""
         while [[ "$pretend" != "1" && "$pretend" != "2" && "$pretend" != "3" && "$pretend" != "4" && "$pretend" != "5" ]]
@@ -1638,7 +1638,7 @@ install_php_dependence()
             $debian_package_manager -y -f install
             if ! $debian_package_manager -y --no-install-recommends install pkg-config libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-2-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev autoconf git libmagickwand-dev && ! $debian_package_manager -y --no-install-recommends install pkg-config libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev autoconf git libmagickwand-dev; then
                 yellow "依赖安装失败！！"
-                green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+                green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
                 yellow "按回车键继续或者Ctrl+c退出"
                 read -s
             fi
@@ -1670,7 +1670,7 @@ compile_php()
     if ! make -j$cpu_thread_num; then
         swap_off
         red    "php编译失败！"
-        green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+        green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
         yellow "在Bug修复前，建议使用Ubuntu最新版系统"
         exit 1
     fi
@@ -1691,7 +1691,7 @@ instal_php_imagick()
     if ! make -j$cpu_thread_num; then
         swap_off
         yellow "php-imagick编译失败"
-        green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+        green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
         yellow "在Bug修复前，建议使用Ubuntu最新版系统"
         yellow "按回车键继续或者按Ctrl+c终止"
         read -s
@@ -1788,7 +1788,7 @@ compile_nginx()
     if ! make -j$cpu_thread_num; then
         swap_off
         red    "Nginx编译失败！"
-        green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+        green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
         yellow "在Bug修复前，建议使用Ubuntu最新版系统"
         exit 1
     fi
@@ -2370,7 +2370,7 @@ init_web()
         return 0
     fi
     local url
-    [ ${pretend_list[$1]} -eq 2 ] && url="${nextcloud_url}" || url="https://github.com/kirin10000/Xray-script/raw/main/Website-Template.zip"
+    [ ${pretend_list[$1]} -eq 2 ] && url="${nextcloud_url}" || url="https://github.com/daoini/Xray-script/raw/main/Website-Template.zip"
     local info
     [ ${pretend_list[$1]} -eq 2 ] && info="Nextcloud" || info="网站模板"
     if ! wget -O "${nginx_prefix}/html/Website.zip" "$url"; then
@@ -2656,7 +2656,7 @@ print_config_info()
     echo
     ask_if "是否生成分享链接？(y/n)" && print_share_link
     echo
-    yellow " 关于fingerprint与alpn，详见：https://github.com/kirin10000/Xray-script#关于tls握手tls指纹和alpn"
+    yellow " 关于fingerprint与alpn，详见：https://github.com/daoini/Xray-script#关于tls握手tls指纹和alpn"
     echo
     blue   " 若想实现Fullcone(NAT类型开放)，需要达成以下条件："
     blue   "   1. 确保客户端核心为 Xray v1.3.0+"
@@ -3400,12 +3400,12 @@ start_menu()
     echo
     tyblue "        Cloudreve ：           ${cloudreve_status}"
     echo
-    tyblue "       官网：https://github.com/kirin10000/Xray-script"
+    tyblue "       官网：https://github.com/daoini/Xray-script"
     echo
     tyblue "----------------------------------注意事项----------------------------------"
     yellow " 1. 此脚本需要一个解析到本服务器的域名"
     tyblue " 2. 此脚本安装时间较长，建议在安装前阅读："
-    tyblue "      https://github.com/kirin10000/Xray-script#安装时长说明"
+    tyblue "      https://github.com/daoini/Xray-script#安装时长说明"
     green  " 3. 建议在纯净的系统上使用此脚本 (VPS控制台-重置系统)"
     tyblue "----------------------------------------------------------------------------"
     echo
