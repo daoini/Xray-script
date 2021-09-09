@@ -1570,8 +1570,8 @@ readDomain()
     local pretend
     echo -e "\\n\\n\\n"
     tyblue "--------------------请选择域名解析情况--------------------"
-    tyblue " 1. 主域名 和 www.主域名 都解析到此服务器上 \\033[32m(推荐)"
-    green  "    如：123.com 和 www.123.com 都解析到此服务器上"
+    tyblue " 1. 主域名 和 *.主域名 都解析到此服务器上 \\033[32m(推荐)"
+    green  "    如：123.com 和 *.123.com 都解析到此服务器上"
     tyblue " 2. 仅某个特定域名解析到此服务器上"
     green  "    如：123.com 或 www.123.com 或 xxx.123.com 中的一个解析到此服务器上"
     echo
@@ -1606,7 +1606,7 @@ readDomain()
     done
     readPretend
     true_domain_list+=("$domain")
-    [ $domain_config -eq 1 ] && domain_list+=("www.$domain") || domain_list+=("$domain")
+    [ $domain_config -eq 1 ] && domain_list+=("*.$domain") || domain_list+=("$domain")
     domain_config_list+=("$domain_config")
     pretend_list+=("$pretend")
 }
