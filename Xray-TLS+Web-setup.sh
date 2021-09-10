@@ -1779,6 +1779,14 @@ compile_nginx()
         yellow "按回车键继续或者按Ctrl+c终止"
         read -s
     fi
+    if ! git clone https://github.com/google/ngx_brotli.git; then
+        red    "获取brotli失败"
+        yellow "按回车键继续或者按Ctrl+c终止"
+        read -s
+    fi
+    cd ngx_brotli
+    git submodule update --init
+    cd ..
     tar -zxf ${openssl_version}.tar.gz
     rm "${openssl_version}.tar.gz"
     cd ${nginx_version}
