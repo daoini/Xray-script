@@ -47,7 +47,7 @@ update=""
 in_install_update_xray_tls_web=0
 
 #配置信息
-#域名列表 两个列表用来区别 www.主域名
+#域名列表 两个列表用来区别 *.主域名
 unset domain_list
 unset true_domain_list
 unset domain_config_list
@@ -338,11 +338,11 @@ turn_on_off_cloudreve()
 }
 let_change_cloudreve_domain()
 {
-    tyblue "----------- 请打开\"https://${domain_list[$1]}\"修改Cloudreve站点信息 ---------"
+    tyblue "----------- 请打开\"https://cloud.${true_domain_list[$1]}\"修改Cloudreve站点信息 ---------"
     tyblue "  1. 登陆帐号"
     tyblue "  2. 右上角头像 -> 管理面板"
     tyblue "  3. 左侧的参数设置 -> 站点信息"
-    tyblue "  4. 站点URL改为\"https://${domain_list[$1]}\" -> 往下拉点击保存"
+    tyblue "  4. 站点URL改为\"https://cloud.${true_domain_list[$1]}\" -> 往下拉点击保存"
     sleep 15s
     echo -e "\\n\\n"
     tyblue "按两次回车键以继续。。。"
@@ -356,7 +356,7 @@ init_cloudreve()
     sleep 1s
     systemctl start cloudreve
     systemctl enable cloudreve
-    tyblue "-------- 请打开\"https://${domain_list[$1]}\"进行Cloudreve初始化 -------"
+    tyblue "-------- 请打开\"https://cloud.${true_domain_list[$1]}\"进行Cloudreve初始化 -------"
     tyblue "  1. 登陆帐号"
     purple "    初始管理员账号：admin@cloudreve.org"
     purple "    $temp"
@@ -1894,11 +1894,12 @@ cat > ${nginx_prefix}/conf.d/nextcloud.conf <<EOF
         access_log off;
     }
     location ^~ /.well-known {
-        location = /.well-known/carddav { return 301 https://\$host/remote.php/dav/; }
-        location = /.well-known/caldav  { return 301 https://\$host/remote.php/dav/; }
-        location /.well-known/acme-challenge    { try_files \$uri \$uri/ =404; }
-        location /.well-known/pki-validation    { try_files \$uri \$uri/ =404; }
-        return 301 https://\$host/index.php\$request_uri;
+        #location = /.well-known/carddav { return 301 https://\$host/remote.php/dav/; }
+        #location = /.well-known/caldav  { return 301 https://\$host/remote.php/dav/; }
+        #location /.well-known/acme-challenge    { try_files \$uri \$uri/ =404; }
+        #location /.well-known/pki-validation    { try_files \$uri \$uri/ =404; }
+        #return 301 https://\$host/index.php\$request_uri;
+        deny all;
     }
     location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/)  { return 404; }
     location ~ ^/(?:\\.|autotest|occ|issue|indie|db_|console)                { return 404; }
@@ -2155,13 +2156,19 @@ cat > $nginx_config<<EOF
 server {
     listen 80 reuseport default_server;
     listen [::]:80 reuseport default_server;
-    return 301 https://${domain_list[0]};
+    return 403;
 }
 server {
     listen 80;
     listen [::]:80;
-    server_name ${domain_list[@]};
+    server_name ${true_domain_list[@]};
     return 301 https://\$host\$request_uri;
+}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name cloud.${true_domain_list[0]};
+    return 301 https://cloud.\$host\$request_uri;
 }
 EOF
     local temp_domain_list2=()
@@ -2176,8 +2183,9 @@ server {
     listen [::]:80;
     listen unix:/dev/shm/nginx_unixsocket/default.sock;
     listen unix:/dev/shm/nginx_unixsocket/h2.sock http2;
-    server_name ${temp_domain_list2[@]};
-    return 301 https://www.\$host\$request_uri;
+    #server_name ${temp_domain_list2[@]};
+    server_name cloud.$true_domain_list[0];
+    return 301 https://cloud.\$host\$request_uri;
 }
 EOF
     fi
@@ -2185,7 +2193,7 @@ cat >> $nginx_config<<EOF
 server {
     listen unix:/dev/shm/nginx_unixsocket/default.sock default_server;
     listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 default_server;
-    return 301 https://${domain_list[0]};
+    return 301 https://${ture_domain_list[0]};
 }
 EOF
     for ((i=0;i<${#domain_list[@]};i++))
