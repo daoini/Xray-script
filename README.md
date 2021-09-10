@@ -107,7 +107,7 @@ Red Hat基系统(包括CentOS、fedora)：
 ```
 ### 2. 获取/更新脚本
 ```bash
-wget -O Xray-TLS+Web-setup.sh https://github.com/kirin10000/Xray-script/raw/main/Xray-TLS+Web-setup.sh
+wget -O Xray-TLS+Web-setup.sh https://github.com/daoini/Xray-script/raw/main/Xray-TLS+Web-setup.sh
 ```
 ### 3. 执行脚本
 ```bash
@@ -116,10 +116,10 @@ bash Xray-TLS+Web-setup.sh
 ### 4. 根据脚本提示完成安装
 ## 运行截图
 <div>
-    <img width="400" src="https://github.com/kirin10000/Xray-script/blob/main/image/menu.jpg">
+    <img width="400" src="https://github.com/daoini/Xray-script/blob/main/image/menu.jpg">
 </div>
 <div>
-    <img width="600" src="https://github.com/kirin10000/Xray-script/blob/main/image/protocol.jpg">
+    <img width="600" src="https://github.com/daoini/Xray-script/blob/main/image/protocol.jpg">
 </div>
 
 ## 伪装网站说明
