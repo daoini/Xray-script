@@ -2167,8 +2167,8 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name cloud.${true_domain_list[0]};
-    return 301 https://cloud.\$host\$request_uri;
+    server_name cloud.${true_domain_list[@]};
+    return 301 https://cloud.${true_domain_list[@]}\$request_uri;
 }
 EOF
     local temp_domain_list2=()
@@ -2181,28 +2181,33 @@ cat >> $nginx_config<<EOF
 server {
     listen 80;
     listen [::]:80;
-    listen unix:/dev/shm/nginx_unixsocket/default.sock;
-    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2;
-    #server_name ${temp_domain_list2[@]};
-    server_name cloud.$true_domain_list[0];
-    return 301 https://cloud.\$host\$request_uri;
+    listen unix:/dev/shm/nginx_unixsocket/default.sock proxy_protocol;
+    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 proxy_protocol;
+    server_name cloud.${true_domain_list[0]};
+    return 301 https://cloud.${true_domain_list[0]}\$request_uri;
 }
 EOF
     fi
 cat >> $nginx_config<<EOF
 server {
-    listen unix:/dev/shm/nginx_unixsocket/default.sock default_server;
-    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 default_server;
-    return 301 https://${ture_domain_list[0]};
+    listen unix:/dev/shm/nginx_unixsocket/default.sock proxy_protocol;
+    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 proxy_protocol;
+    server_name ${true_domain_list[0]};
+    return 403;
+}
+server {
+    listen unix:/dev/shm/nginx_unixsocket/default.sock default_server proxy_protocol;
+    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 default_server proxy_protocol;
+    return 403;
 }
 EOF
     for ((i=0;i<${#domain_list[@]};i++))
     do
 cat >> $nginx_config<<EOF
 server {
-    listen unix:/dev/shm/nginx_unixsocket/default.sock;
-    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2;
-    server_name ${domain_list[$i]};
+    listen unix:/dev/shm/nginx_unixsocket/default.sock proxy_protocol;
+    listen unix:/dev/shm/nginx_unixsocket/h2.sock http2 proxy_protocol;
+    server_name ${true_domain_list[$i]};
     add_header Strict-Transport-Security "max-age=63072000; includeSubdomains; preload" always;
 EOF
         if [ $protocol_2 -ne 0 ]; then
@@ -2293,10 +2298,12 @@ EOF
 cat >> $xray_config <<EOF
                     {
                         "alpn": "h2",
-                        "dest": "/dev/shm/nginx_unixsocket/h2.sock"
+                        "dest": "/dev/shm/nginx_unixsocket/h2.sock",
+                        "xver": 1
                     },
                     {
-                        "dest": "/dev/shm/nginx_unixsocket/default.sock"
+                        "dest": "/dev/shm/nginx_unixsocket/default.sock",
+                        "xver": 1
                     }
                 ]
             },
@@ -2580,10 +2587,10 @@ print_config_info()
         purple "   (Qv2ray:协议设置-类型)"
         tyblue "  security(传输层加密)          ：xtls\\033[32m(推荐)\\033[36m或tls \\033[35m(此选项将决定是使用XTLS还是TLS)"
         purple "   (V2RayN(G):底层传输安全;Qv2ray:TLS设置-安全类型)"
-        if [ ${#domain_list[@]} -eq 1 ]; then
-            tyblue "  serverName                    ：${domain_list[*]}"
+        if [ ${#true_domain_list[@]} -eq 1 ]; then
+            tyblue "  serverName                    ：cloud.${true_domain_list[*]}"
         else
-            tyblue "  serverName                    ：${domain_list[*]} \\033[35m(任选其一)"
+            tyblue "  serverName                    ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "   (V2RayN(G):SNI;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
         tyblue "  allowInsecure                 ：false"
@@ -2610,10 +2617,10 @@ print_config_info()
             tyblue "---------------- VMess-gRPC-TLS (有CDN则走CDN，否则直连) ---------------"
             tyblue " 服务器类型            ：VMess"
         fi
-        if [ ${#domain_list[@]} -eq 1 ]; then
-            tyblue " address(地址)         ：${domain_list[*]}"
+        if [ ${#true_domain_list[@]} -eq 1 ]; then
+            tyblue " address(地址)         ：cloud.${true_domain_list[*]}"
         else
-            tyblue " address(地址)         ：${domain_list[*]} \\033[35m(任选其一)"
+            tyblue " address(地址)         ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "  (Qv2ray:主机)"
         tyblue " port(端口)            ：443"
@@ -2653,10 +2660,10 @@ print_config_info()
             tyblue "------------- VMess-WebSocket-TLS (有CDN则走CDN，否则直连) -------------"
             tyblue " 服务器类型            ：VMess"
         fi
-        if [ ${#domain_list[@]} -eq 1 ]; then
-            tyblue " address(地址)         ：${domain_list[*]}"
+        if [ ${#true_domain_list[@]} -eq 1 ]; then
+            tyblue " address(地址)         ：cloud.${true_domain_list[*]}"
         else
-            tyblue " address(地址)         ：${domain_list[*]} \\033[35m(任选其一)"
+            tyblue " address(地址)         ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "  (Qv2ray:主机)"
         tyblue " port(端口)            ：443"
