@@ -506,7 +506,13 @@ remove_all_domains()
     mkdir "${nginx_prefix}/certs"
     $HOME/.acme.sh/acme.sh --uninstall
     rm -rf $HOME/.acme.sh
-    curl https://get.acme.sh | sh -s email=my@example.com
+    local acme_email=""
+    while true
+    do
+        read -p "acme的邮箱是：" acme_email
+        ask_if "是否确定?(y/n)" && break
+    done
+    curl https://get.acme.sh | sh -s email=$acme_email
     $HOME/.acme.sh/acme.sh --upgrade --auto-upgrade
     unset domain_list
     unset true_domain_list
@@ -2835,7 +2841,13 @@ install_update_xray_tls_web()
     if [ $update -eq 0 ]; then
         [ -e $HOME/.acme.sh/acme.sh ] && $HOME/.acme.sh/acme.sh --uninstall
         rm -rf $HOME/.acme.sh
-        curl https://get.acme.sh | sh -s email=my@example.com
+        local acme_email=""
+        while true
+        do
+            read -p "acme的邮箱是：" acme_email
+            ask_if "是否确定?(y/n)" && break
+        done
+        curl https://get.acme.sh | sh -s email=$acme_email
     fi
     $HOME/.acme.sh/acme.sh --upgrade --auto-upgrade
     get_all_certs
