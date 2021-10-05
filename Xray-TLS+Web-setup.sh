@@ -24,7 +24,7 @@ nginx_config="${nginx_prefix}/conf.d/xray.conf"
 nginx_service="/etc/systemd/system/nginx.service"
 nginx_is_installed=""
 
-php_version="php-8.0.10"
+php_version="php-8.0.11"
 php_prefix="/usr/local/php"
 php_service="/etc/systemd/system/php-fpm.service"
 php_is_installed=""
@@ -34,7 +34,7 @@ cloudreve_prefix="/usr/local/cloudreve"
 cloudreve_service="/etc/systemd/system/cloudreve.service"
 cloudreve_is_installed=""
 
-nextcloud_url="https://download.nextcloud.com/server/releases/nextcloud-22.1.1.zip"
+nextcloud_url="https://download.nextcloud.com/server/releases/nextcloud-22.2.0.zip"
 
 xray_config="/usr/local/etc/xray/config.json"
 xray_is_installed=""
@@ -99,10 +99,10 @@ check_base_command()
 {
     local i
     local temp_command_list=('bash' 'true' 'false' 'exit' 'echo' 'test' 'sort' 'sed' 'awk' 'grep' 'cut' 'cd' 'rm' 'cp' 'mv' 'head' 'tail' 'uname' 'tr' 'md5sum' 'cat' 'find' 'type' 'command' 'wc' 'ls' 'mktemp' 'swapon' 'swapoff' 'mkswap' 'chmod' 'chown' 'export')
-    for i in ${!temp_command_list[@]}
+    for i in "${temp_command_list[@]}"
     do
-        if ! command -V "${temp_command_list[$i]}" > /dev/null; then
-            red "命令\"${temp_command_list[$i]}\"未找到"
+        if ! command -V "${i}" > /dev/null; then
+            red "命令\"${i}\"未找到"
             red "不是标准的Linux系统"
             exit 1
         fi
@@ -470,12 +470,12 @@ backup_domains_web()
 {
     local i
     mkdir "${temp_dir}/domain_backup"
-    for i in ${!true_domain_list[@]}
+    for i in "${true_domain_list[@]}"
     do
         if [ "$1" == "cp" ]; then
-            cp -rf ${nginx_prefix}/html/${true_domain_list[$i]} "${temp_dir}/domain_backup" 2>/dev/null
+            cp -rf "${nginx_prefix}/html/${i}" "${temp_dir}/domain_backup" 2>/dev/null
         else
-            mv ${nginx_prefix}/html/${true_domain_list[$i]} "${temp_dir}/domain_backup" 2>/dev/null
+            mv "${nginx_prefix}/html/${i}" "${temp_dir}/domain_backup" 2>/dev/null
         fi
     done
 }
@@ -528,6 +528,25 @@ get_config_info()
     true_domain_list=($(grep "^#true_domain_list=" $nginx_config | cut -d = -f 2))
     domain_config_list=($(grep "^#domain_config_list=" $nginx_config | cut -d = -f 2))
     pretend_list=($(grep "^#pretend_list=" $nginx_config | cut -d = -f 2))
+}
+gen_cflags()
+{
+    cflags="-g0 -O3"
+    if gcc -v --help 2>&1 | grep -qw "\\-fcf\\-protection"; then
+        cflags="${cflags} -fcf-protection=none"
+    fi
+    if gcc -v --help 2>&1 | grep -qw "\\-fsplit\\-stack"; then
+        cflags="${cflags} -fno-split-stack"
+    fi
+    if gcc -v --help 2>&1 | grep -qw "\\-fstack\\-check"; then
+        cflags="${cflags} -fno-stack-check"
+    fi
+    if gcc -v --help 2>&1 | grep -qw "\\-fstack\\-protector"; then
+        cflags="${cflags} -fno-stack-protector"
+    fi
+    if gcc -v --help 2>&1 | grep -qw "\\-fstack\\-clash\\-protection"; then
+        cflags="${cflags} -fno-stack-clash-protection"
+    fi
 }
 
 check_base_command
@@ -645,11 +664,11 @@ check_port()
     ([ $xray_status -eq 1 ] || [ $nginx_status -eq 1 ]) && sleep 2s
     local check_list=('80' '443')
     local i
-    for i in ${!check_list[@]}
+    for i in "${check_list[@]}"
     do
-        if netstat -tuln | awk '{print $4}'  | awk -F : '{print $NF}' | grep -E "^[0-9]+$" | grep -wq "${check_list[$i]}"; then
-            red "${check_list[$i]}端口被占用！"
-            yellow "请用 lsof -i:${check_list[$i]} 命令检查"
+        if netstat -tuln | awk '{print $4}'  | awk -F : '{print $NF}' | grep -E "^[0-9]+$" | grep -wq "${i}"; then
+            red "${i}端口被占用！"
+            yellow "请用 lsof -i:${i} 命令检查"
             exit 1
         fi
     done
@@ -834,15 +853,12 @@ doupdate()
         check_important_dependence_installed "ubuntu-release-upgrader-core"
         echo -e "\\n\\n\\n"
         tyblue "------------------请选择升级系统版本--------------------"
-        tyblue " 1.最新beta版(现在是21.10)(2021.5)"
-        tyblue " 2.最新发行版(现在是21.04)(2021.5)"
-        tyblue " 3.最新LTS版(现在是20.04)(2021.5)"
-        tyblue "-------------------------版本说明-------------------------"
-        tyblue " beta版：即测试版"
-        tyblue " 发行版：即稳定版"
-        tyblue " LTS版：长期支持版本，可以理解为超级稳定版"
+        tyblue " 1. beta版(测试版)          当前版本号：21.10"
+        tyblue " 2. release版(稳定版)       当前版本号：21.04"
+        tyblue " 3. LTS版(长期支持版)       当前版本号：20.04"
+        tyblue " 0. 不升级系统"
         tyblue "-------------------------注意事项-------------------------"
-        yellow " 1.升级过程中遇到问话/对话框，如果不明白，选择yes/y/第一个选项"
+        yellow " 1.升级过程中遇到问话/对话框，如果不清楚，请选择yes/y/第一个选项"
         yellow " 2.升级系统可能需要15分钟或更久"
         yellow " 3.有的时候不能一次性更新到所选择的版本，可能要更新多次"
         yellow " 4.升级系统后以下配置可能会恢复系统默认配置："
@@ -852,25 +868,27 @@ doupdate()
         tyblue "----------------------------------------------------------"
         echo
         choice=""
-        while [ "$choice" != "1" ] && [ "$choice" != "2" ] && [ "$choice" != "3" ]
+        while [[ ! "$choice" =~ ^(0|[1-9][0-9]*)$ ]] || ((choice>3))
         do
             read -p "您的选择是：" choice
         done
-        if ! [[ "$(grep -i '^[ '$'\t]*port[ '$'\t]' /etc/ssh/sshd_config | awk '{print $2}')" =~ ^("22"|)$ ]]; then
-            red "检测到ssh端口号被修改"
-            red "升级系统后ssh端口号可能恢复默认值(22)"
-            yellow "按回车键继续。。。"
-            read -s
-        fi
-        if [ $in_install_update_xray_tls_web -eq 1 ]; then
-            echo
-            tyblue "提示：即将开始升级系统"
-            yellow " 升级完系统后服务器将重启，重启后，请再次运行脚本完成 Xray-TLS+Web 剩余部分的安装/升级"
-            yellow " 再次运行脚本时，重复之前选过的选项即可"
-            echo
-            sleep 2s
-            yellow "按回车键以继续。。。"
-            read -s
+        if [ $choice -ne 0 ]; then
+            if ! [[ "$(grep -i '^[ '$'\t]*port[ '$'\t]' /etc/ssh/sshd_config | awk '{print $2}')" =~ ^("22"|)$ ]]; then
+                red "检测到ssh端口号被修改"
+                red "升级系统后ssh端口号可能恢复默认值(22)"
+                yellow "按回车键继续。。。"
+                read -s
+            fi
+            if [ $in_install_update_xray_tls_web -eq 1 ]; then
+                echo
+                tyblue "提示：即将开始升级系统"
+                yellow " 升级完系统后服务器将重启，重启后，请再次运行脚本完成 Xray-TLS+Web 剩余部分的安装/升级"
+                yellow " 再次运行脚本时，重复之前选过的选项即可"
+                echo
+                sleep 2s
+                yellow "按回车键以继续。。。"
+                read -s
+            fi
         fi
         local i
         for ((i=0;i<2;i++))
@@ -1678,6 +1696,8 @@ install_php_dependence()
 compile_php()
 {
     green "正在编译php。。。。"
+    local cflags
+    gen_cflags
     if ! wget -O "${php_version}.tar.xz" "https://www.php.net/distributions/${php_version}.tar.xz"; then
         red    "获取php失败"
         yellow "按回车键继续或者按Ctrl+c终止"
@@ -1690,9 +1710,9 @@ compile_php()
     if [ $release == "ubuntu" ] || [ $release == "debian" ] || [ $release == "deepin" ] || [ $release == "other-debian" ]; then
         sed -i 's#if test -f $THIS_PREFIX/$PHP_LIBDIR/lib$LIB\.a || test -f $THIS_PREFIX/$PHP_LIBDIR/lib$LIB\.$SHLIB_SUFFIX_NAME#& || true#' configure
         sed -i 's#if test ! -r "$PDO_FREETDS_INSTALLATION_DIR/$PHP_LIBDIR/libsybdb\.a" && test ! -r "$PDO_FREETDS_INSTALLATION_DIR/$PHP_LIBDIR/libsybdb\.so"#& \&\& false#' configure
-        ./configure --prefix=${php_prefix} --enable-embed=shared --enable-fpm --with-fpm-user=www-data --with-fpm-group=www-data --with-fpm-systemd --with-fpm-acl --with-fpm-apparmor --disable-phpdbg --with-layout=GNU --with-openssl --with-kerberos --with-external-pcre --with-pcre-jit --with-zlib --enable-bcmath --with-bz2 --enable-calendar --with-curl --enable-dba --with-qdbm --with-db4 --with-db1 --with-tcadb --with-lmdb --with-enchant --enable-exif --with-ffi --enable-ftp --enable-gd --with-external-gd --with-webp --with-jpeg --with-xpm --with-freetype --enable-gd-jis-conv --with-gettext --with-gmp --with-mhash --with-imap --with-imap-ssl --enable-intl --with-ldap --with-ldap-sasl --enable-mbstring --with-mysqli --with-mysql-sock --with-unixODBC --enable-pcntl --with-pdo-dblib --with-pdo-mysql --with-zlib-dir --with-pdo-odbc=unixODBC,/usr --with-pdo-pgsql --with-pgsql --with-pspell --with-libedit --with-mm --enable-shmop --with-snmp --enable-soap --enable-sockets --with-sodium --with-password-argon2 --enable-sysvmsg --enable-sysvsem --enable-sysvshm --with-tidy --with-xsl --with-zip --enable-mysqlnd --with-pear CPPFLAGS="-g0 -O3" CFLAGS="-g0 -O3" CXXFLAGS="-g0 -O3"
+        ./configure --prefix=${php_prefix} --enable-embed=shared --enable-fpm --with-fpm-user=www-data --with-fpm-group=www-data --with-fpm-systemd --with-fpm-acl --with-fpm-apparmor --disable-phpdbg --with-layout=GNU --with-openssl --with-kerberos --with-external-pcre --with-pcre-jit --with-zlib --enable-bcmath --with-bz2 --enable-calendar --with-curl --enable-dba --with-qdbm --with-db4 --with-db1 --with-tcadb --with-lmdb --with-enchant --enable-exif --with-ffi --enable-ftp --enable-gd --with-external-gd --with-webp --with-jpeg --with-xpm --with-freetype --enable-gd-jis-conv --with-gettext --with-gmp --with-mhash --with-imap --with-imap-ssl --enable-intl --with-ldap --with-ldap-sasl --enable-mbstring --with-mysqli --with-mysql-sock --with-unixODBC --enable-pcntl --with-pdo-dblib --with-pdo-mysql --with-zlib-dir --with-pdo-odbc=unixODBC,/usr --with-pdo-pgsql --with-pgsql --with-pspell --with-libedit --with-mm --enable-shmop --with-snmp --enable-soap --enable-sockets --with-sodium --with-password-argon2 --enable-sysvmsg --enable-sysvsem --enable-sysvshm --with-tidy --with-xsl --with-zip --enable-mysqlnd --with-pear CFLAGS="${cflags}" CXXFLAGS="${cflags}"
     else
-        ./configure --prefix=${php_prefix} --with-libdir=lib64 --enable-embed=shared --enable-fpm --with-fpm-user=www-data --with-fpm-group=www-data --with-fpm-systemd --with-fpm-acl --disable-phpdbg --with-layout=GNU --with-openssl --with-kerberos --with-external-pcre --with-pcre-jit --with-zlib --enable-bcmath --with-bz2 --enable-calendar --with-curl --enable-dba --with-gdbm --with-db4 --with-db1 --with-tcadb --with-lmdb --with-enchant --enable-exif --with-ffi --enable-ftp --enable-gd --with-external-gd --with-webp --with-jpeg --with-xpm --with-freetype --enable-gd-jis-conv --with-gettext --with-gmp --with-mhash --with-imap --with-imap-ssl --enable-intl --with-ldap --with-ldap-sasl --enable-mbstring --with-mysqli --with-mysql-sock --with-unixODBC --enable-pcntl --with-pdo-dblib --with-pdo-mysql --with-zlib-dir --with-pdo-odbc=unixODBC,/usr --with-pdo-pgsql --with-pgsql --with-pspell --with-libedit --enable-shmop --with-snmp --enable-soap --enable-sockets --with-sodium --with-password-argon2 --enable-sysvmsg --enable-sysvsem --enable-sysvshm --with-tidy --with-xsl --with-zip --enable-mysqlnd --with-pear CPPFLAGS="-g0 -O3" CFLAGS="-g0 -O3" CXXFLAGS="-g0 -O3"
+        ./configure --prefix=${php_prefix} --with-libdir=lib64 --enable-embed=shared --enable-fpm --with-fpm-user=www-data --with-fpm-group=www-data --with-fpm-systemd --with-fpm-acl --disable-phpdbg --with-layout=GNU --with-openssl --with-kerberos --with-external-pcre --with-pcre-jit --with-zlib --enable-bcmath --with-bz2 --enable-calendar --with-curl --enable-dba --with-gdbm --with-db4 --with-db1 --with-tcadb --with-lmdb --with-enchant --enable-exif --with-ffi --enable-ftp --enable-gd --with-external-gd --with-webp --with-jpeg --with-xpm --with-freetype --enable-gd-jis-conv --with-gettext --with-gmp --with-mhash --with-imap --with-imap-ssl --enable-intl --with-ldap --with-ldap-sasl --enable-mbstring --with-mysqli --with-mysql-sock --with-unixODBC --enable-pcntl --with-pdo-dblib --with-pdo-mysql --with-zlib-dir --with-pdo-odbc=unixODBC,/usr --with-pdo-pgsql --with-pgsql --with-pspell --with-libedit --enable-shmop --with-snmp --enable-soap --enable-sockets --with-sodium --with-password-argon2 --enable-sysvmsg --enable-sysvsem --enable-sysvshm --with-tidy --with-xsl --with-zip --enable-mysqlnd --with-pear CFLAGS="${cflags}" CXXFLAGS="${cflags}"
     fi
     swap_on 2048
     if ! make -j$cpu_thread_num; then
@@ -1707,6 +1727,8 @@ compile_php()
 }
 instal_php_imagick()
 {
+    local cflags
+    gen_cflags
     if ! git clone https://github.com/Imagick/imagick; then
         yellow "获取php-imagick源码失败"
         yellow "按回车键继续或者按Ctrl+c终止"
@@ -1714,7 +1736,7 @@ instal_php_imagick()
     fi
     cd imagick
     ${php_prefix}/bin/phpize
-    ./configure --with-php-config=${php_prefix}/bin/php-config CFLAGS="-g0 -O3"
+    ./configure --with-php-config=${php_prefix}/bin/php-config CFLAGS="${cflags}"
     swap_on 380
     if ! make -j$cpu_thread_num; then
         swap_off
@@ -1795,6 +1817,8 @@ EOF
 compile_nginx()
 {
     green "正在编译Nginx。。。。"
+    local cflags
+    gen_cflags
     if ! wget -O ${nginx_version}.tar.gz https://nginx.org/download/${nginx_version}.tar.gz; then
         red    "获取nginx失败"
         yellow "按回车键继续或者按Ctrl+c终止"
@@ -2199,7 +2223,7 @@ server {
 }
 EOF
     local temp_domain_list2=()
-    for i in ${!domain_config_list[@]}
+    for i in "${!domain_config_list[@]}"
     do
         [ ${domain_config_list[$i]} -eq 1 ] && temp_domain_list2+=("${true_domain_list[$i]}")
     done
@@ -2578,50 +2602,59 @@ print_share_link()
     echo
     tyblue "分享链接："
     if [ $protocol_1 -eq 1 ]; then
-        green  "VLESS-TCP-XTLS\\033[35m(不走CDN)\\033[32m："
-        yellow " Linux/安卓/路由器："
-        for i in ${!domain_list[@]}
+        green  "============ VLESS-TCP-TLS\\033[35m(不走CDN)\\033[32m ============"
+        for i in "${!domain_list[@]}"
         do
             if [ "${pretend_list[$i]}" == "1" ] || [ "${pretend_list[$i]}" == "2" ]; then
-                tyblue " vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=http%2F1.1&flow=xtls-rprx-splice"
+                tyblue "vless://${xid_1}@${ip}:443?security=tls&sni=${domain_list[$i]}&alpn=http%2F1.1"
             else
-                tyblue " vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&flow=xtls-rprx-splice"
+                tyblue "vless://${xid_1}@${ip}:443?security=tls&sni=${domain_list[$i]}&alpn=h2,http%2F1.1"
             fi
         done
-        yellow " 其他："
-        for i in ${!domain_list[@]}
+        green  "============ VLESS-TCP-XTLS\\033[35m(不走CDN)\\033[32m ============"
+        yellow "Linux/安卓/路由器："
+        for i in "${!domain_list[@]}"
         do
             if [ "${pretend_list[$i]}" == "1" ] || [ "${pretend_list[$i]}" == "2" ]; then
-                tyblue " vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=http%2F1.1&flow=xtls-rprx-direct"
+                tyblue "vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=http%2F1.1&flow=xtls-rprx-splice"
             else
-                tyblue " vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&flow=xtls-rprx-direct"
+                tyblue "vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=h2,http%2F1.1&flow=xtls-rprx-splice"
+            fi
+        done
+        yellow "其他："
+        for i in "${!domain_list[@]}"
+        do
+            if [ "${pretend_list[$i]}" == "1" ] || [ "${pretend_list[$i]}" == "2" ]; then
+                tyblue "vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=http%2F1.1&flow=xtls-rprx-direct"
+            else
+                tyblue "vless://${xid_1}@${ip}:443?security=xtls&sni=${domain_list[$i]}&alpn=h2,http%2F1.1&flow=xtls-rprx-direct"
             fi
         done
     fi
     if [ $protocol_2 -eq 1 ]; then
-        green  "VLESS-gRPC-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m："
-        for i in ${!domain_list[@]}
+        green  "=========== VLESS-gRPC-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
+        for i in "${domain_list[@]}"
         do
-            tyblue "vless://${xid_2}@${domain_list[$i]}:443?type=grpc&security=tls&serviceName=${serviceName}&mode=multi"
+            tyblue "vless://${xid_2}@${i}:443?type=grpc&security=tls&serviceName=${serviceName}&mode=multi&alpn=h2,http%2F1.1"
         done
     elif [ $protocol_2 -eq 2 ]; then
-        green  "VMess-gRPC-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m："
-        for i in ${!domain_list[@]}
+        green  "=========== VMess-gRPC-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
+        for i in "${domain_list[@]}"
         do
-            tyblue "vmess://${xid_2}@${domain_list[$i]}:443?type=grpc&security=tls&serviceName=${serviceName}&mode=multi"
+            tyblue "vmess://${xid_2}@${i}:443?type=grpc&security=tls&serviceName=${serviceName}&mode=multi&alpn=h2,http%2F1.1"
         done
     fi
     if [ $protocol_3 -eq 1 ]; then
-        green  "VLESS-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m："
-        for i in ${!domain_list[@]}
+        green  "=========== VLESS-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
+        for i in "${domain_list[@]}"
         do
-            tyblue "vless://${xid_3}@${domain_list[$i]}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
+            tyblue "vless://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
         done
     elif [ $protocol_3 -eq 2 ]; then
-        green  "VMess-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m："
-        for i in ${!domain_list[@]}
+        green  "=========== VMess-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
+        for i in "${domain_list[@]}"
         do
-            tyblue "vmess://${xid_3}@${domain_list[$i]}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
+            tyblue "vmess://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
         done
     fi
 }
@@ -2630,23 +2663,24 @@ print_config_info()
     echo -e "\\n\\n\\n"
     if [ $protocol_1 -ne 0 ]; then
         tyblue "--------------------- VLESS-TCP-XTLS/TLS (不走CDN) ---------------------"
-        tyblue " 服务器类型            ：VLESS"
-        tyblue " address(地址)         ：服务器ip"
+        tyblue " protocol(传输协议)    ：\\033[33mvless"
+        purple "  (V2RayN选择\"添加[VLESS]服务器\";V2RayNG选择\"手动输入[VLESS]\")"
+        tyblue " address(地址)         ：\\033[33m服务器ip"
         purple "  (Qv2ray:主机)"
-        tyblue " port(端口)            ：443"
-        tyblue " id(用户ID/UUID)       ：${xid_1}"
+        tyblue " port(端口)            ：\\033[33m443"
+        tyblue " id(用户ID/UUID)       ：\\033[33m${xid_1}"
         tyblue " flow(流控)            ："
-        blue   "                         使用XTLS ："
-        blue   "                                    Linux/安卓/路由器：\\033[36mxtls-rprx-splice\\033[32m(推荐)\\033[36m或xtls-rprx-direct"
-        blue   "                                    其它             ：\\033[36mxtls-rprx-direct"
-        blue   "                         使用TLS  ：\\033[36m空"
-        tyblue " encryption(加密)      ：none"
+        tyblue "                         使用XTLS ："
+        tyblue "                                    Linux/安卓/路由器：\\033[33mxtls-rprx-splice\\033[32m(推荐)\\033[36m或\\033[33mxtls-rprx-direct"
+        tyblue "                                    其它             ：\\033[33mxtls-rprx-direct"
+        tyblue "                         使用TLS  ：\\033[33m空"
+        tyblue " encryption(加密)      ：\\033[33mnone"
         tyblue " ---Transport/StreamSettings(底层传输方式/流设置)---"
-        tyblue "  network(传输协议)             ：tcp"
-        purple "   (Shadowrocket:传输方式:none)"
-        tyblue "  type(伪装类型)                ：none"
+        tyblue "  network(传输方式)             ：\\033[33mtcp"
+        purple "   (Shadowrocket传输方式选none)"
+        tyblue "  type(伪装类型)                ：\\033[33mnone"
         purple "   (Qv2ray:协议设置-类型)"
-        tyblue "  security(传输层加密)          ：xtls\\033[32m(推荐)\\033[36m或tls \\033[35m(此选项将决定是使用XTLS还是TLS)"
+        tyblue "  security(传输层加密)          ：\\033[33mxtls\\033[36m或\\033[33mtls \\033[35m(此选项将决定是使用XTLS还是TLS)"
         purple "   (V2RayN(G):底层传输安全;Qv2ray:TLS设置-安全类型)"
         if [ ${#true_domain_list[@]} -eq 1 ]; then
             tyblue "  serverName                    ：cloud.${true_domain_list[*]}"
@@ -2654,16 +2688,16 @@ print_config_info()
             tyblue "  serverName                    ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "   (V2RayN(G):SNI;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
-        tyblue "  allowInsecure                 ：false"
+        tyblue "  allowInsecure                 ：\\033[33mfalse"
         purple "   (Qv2ray:TLS设置-允许不安全的证书(不打勾);Shadowrocket:允许不安全(关闭))"
         tyblue "  fingerprint                   ："
-        blue   "                                  使用XTLS ：\\033[36m空"
-        blue   "                                  使用TLS  ：\\033[36m空/chrome/firefox/safari"
+        tyblue "                                  使用XTLS ：\\033[33m空"
+        tyblue "                                  使用TLS  ：\\033[33m空\\033[36m/\\033[33mchrome\\033[32m(推荐)\\033[36m/\\033[33mfirefox\\033[36m/\\033[33msafari"
         purple "                                           (此选项决定是否伪造浏览器指纹，空代表不伪造)"
         tyblue "  alpn                          ："
-        blue   "                                  伪造浏览器指纹  ：\\033[36m此参数不生效 \\033[35m(可随意填写)"
-        blue   "                                  不伪造浏览器指纹：\\033[36mserverName填的域名对应的伪装网站为网盘则设置为http/1.1，否则保持默认/缺省"
-        purple "   (Qv2ray:TLS设置-ALPN)"
+        tyblue "                                  伪造浏览器指纹  ：此参数不生效，可随意设置"
+        tyblue "                                  不伪造浏览器指纹：serverName填的域名对应的伪装网站为网盘则设置为\\033[33mhttp/1.1\\033[36m，否则设置为\\033[33m空\\033[36m或\\033[33mh2,http/1.1"
+        purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：使用XTLS必须关闭;不使用XTLS也建议关闭"
         purple "   (V2RayN:设置页面-开启Mux多路复用)"
@@ -2673,10 +2707,12 @@ print_config_info()
         echo
         if [ $protocol_2 -eq 1 ]; then
             tyblue "---------------- VLESS-gRPC-TLS (有CDN则走CDN，否则直连) ---------------"
-            tyblue " 服务器类型            ：VLESS"
+            tyblue " protocol(传输协议)    ：\\033[33mvless"
+            purple "  (V2RayN选择\"添加[VLESS]服务器\";V2RayNG选择\"手动输入[VLESS]\")"
         else
             tyblue "---------------- VMess-gRPC-TLS (有CDN则走CDN，否则直连) ---------------"
-            tyblue " 服务器类型            ：VMess"
+            tyblue " protocol(传输协议)    ：\\033[33mvmess"
+            purple "  (V2RayN选择\"添加[VMess]服务器\";V2RayNG选择\"手动输入[Vmess]\")"
         fi
         if [ ${#true_domain_list[@]} -eq 1 ]; then
             tyblue " address(地址)         ：cloud.${true_domain_list[*]}"
@@ -2684,29 +2720,29 @@ print_config_info()
             tyblue " address(地址)         ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "  (Qv2ray:主机)"
-        tyblue " port(端口)            ：443"
-        tyblue " id(用户ID/UUID)       ：${xid_2}"
+        tyblue " port(端口)            ：\\033[33m443"
+        tyblue " id(用户ID/UUID)       ：\\033[33m${xid_2}"
         if [ $protocol_2 -eq 1 ]; then
-            tyblue " flow(流控)            ：空"
-            tyblue " encryption(加密)      ：none"
+            tyblue " flow(流控)            ：\\033[33m空"
+            tyblue " encryption(加密)      ：\\033[33mnone"
         else
-            tyblue " alterId(额外ID)       ：0"
-            tyblue " security(加密方式)    ：使用CDN，推荐auto;不使用CDN，推荐none"
+            tyblue " alterId(额外ID)       ：\\033[33m0"
+            tyblue " security(加密方式)    ：使用CDN，推荐\\033[33mauto\\033[36m;不使用CDN，推荐\\033[33mnone"
             purple "  (Qv2ray:安全选项;Shadowrocket:算法)"
         fi
         tyblue " ---Transport/StreamSettings(底层传输方式/流设置)---"
-        tyblue "  network(传输协议)             ：grpc"
-        tyblue "  serviceName                   ：${serviceName}"
-        tyblue "  multiMode                     ：true"
-        tyblue "  security(传输层加密)          ：tls"
+        tyblue "  network(传输方式)             ：\\033[33mgrpc"
+        tyblue "  serviceName                   ：\\033[33m${serviceName}"
+        tyblue "  multiMode                     ：\\033[33mtrue"
+        purple "   (V2RayN(G)伪装类型(type)选择multi"
+        tyblue "  security(传输层加密)          ：\\033[33mtls"
         purple "   (V2RayN(G):底层传输安全;Qv2ray:TLS设置-安全类型)"
-        tyblue "  serverName                    ：空"
+        tyblue "  serverName                    ：\\033[33m空"
         purple "   (V2RayN(G):SNI和伪装域名;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
-        tyblue "  allowInsecure                 ：false"
+        tyblue "  allowInsecure                 ：\\033[33mfalse"
         purple "   (Qv2ray:TLS设置-允许不安全的证书(不打勾);Shadowrocket:允许不安全(关闭))"
-        tyblue "  fingerprint                   ：空"
-        tyblue "  alpn                          ：h2,http/1.1"
-        purple "   (Qv2ray:TLS设置-ALPN填写\"h2|http/1.1\")"
+        tyblue "  alpn                          ：\\033[33m空\\033[36m或\\033[33mh2,http/1.1"
+        purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：强烈建议关闭"
         purple "   (V2RayN:设置页面-开启Mux多路复用)"
@@ -2716,10 +2752,12 @@ print_config_info()
         echo
         if [ $protocol_3 -eq 1 ]; then
             tyblue "------------- VLESS-WebSocket-TLS (有CDN则走CDN，否则直连) -------------"
-            tyblue " 服务器类型            ：VLESS"
+            tyblue " protocol(传输协议)    ：\\033[33mvless"
+            purple "  (V2RayN选择\"添加[VLESS]服务器\";V2RayNG选择\"手动输入[VLESS]\")"
         else
             tyblue "------------- VMess-WebSocket-TLS (有CDN则走CDN，否则直连) -------------"
-            tyblue " 服务器类型            ：VMess"
+            tyblue " protocol(传输协议)    ：\\033[33mvmess"
+            purple "  (V2RayN选择\"添加[VMess]服务器\";V2RayNG选择\"手动输入[Vmess]\")"
         fi
         if [ ${#true_domain_list[@]} -eq 1 ]; then
             tyblue " address(地址)         ：cloud.${true_domain_list[*]}"
@@ -2727,31 +2765,30 @@ print_config_info()
             tyblue " address(地址)         ：cloud.${true_domain_list[*]} \\033[35m(任选其一)"
         fi
         purple "  (Qv2ray:主机)"
-        tyblue " port(端口)            ：443"
-        tyblue " id(用户ID/UUID)       ：${xid_3}"
+        tyblue " port(端口)            ：\\033[33m443"
+        tyblue " id(用户ID/UUID)       ：\\033[33m${xid_3}"
         if [ $protocol_3 -eq 1 ]; then
-            tyblue " flow(流控)            ：空"
-            tyblue " encryption(加密)      ：none"
+            tyblue " flow(流控)            ：\\033[33m空"
+            tyblue " encryption(加密)      ：\\033[33mnone"
         else
-            tyblue " alterId(额外ID)       ：0"
-            tyblue " security(加密方式)    ：使用CDN，推荐auto;不使用CDN，推荐none"
+            tyblue " alterId(额外ID)       ：\\033[33m0"
+            tyblue " security(加密方式)    ：使用CDN，推荐\\033[33mauto\\033[36m;不使用CDN，推荐\\033[33mnone"
             purple "  (Qv2ray:安全选项;Shadowrocket:算法)"
         fi
         tyblue " ---Transport/StreamSettings(底层传输方式/流设置)---"
-        tyblue "  network(传输协议)             ：ws"
-        purple "   (Shadowrocket:传输方式:websocket)"
-        tyblue "  path(路径)                    ：${path}?ed=2048"
-        tyblue "  Host                          ：空"
+        tyblue "  network(传输方式)             ：\\033[33mws"
+        purple "   (Shadowrocket传输方式选websocket)"
+        tyblue "  path(路径)                    ：\\033[33m${path}?ed=2048"
+        tyblue "  Host                          ：\\033[33m空"
         purple "   (V2RayN(G):伪装域名;Qv2ray:协议设置-请求头)"
-        tyblue "  security(传输层加密)          ：tls"
+        tyblue "  security(传输层加密)          ：\\033[33mtls"
         purple "   (V2RayN(G):底层传输安全;Qv2ray:TLS设置-安全类型)"
-        tyblue "  serverName                    ：空"
+        tyblue "  serverName                    ：\\033[33m空"
         purple "   (V2RayN(G):SNI和伪装域名;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
-        tyblue "  allowInsecure                 ：false"
+        tyblue "  allowInsecure                 ：\\033[33mfalse"
         purple "   (Qv2ray:TLS设置-允许不安全的证书(不打勾);Shadowrocket:允许不安全(关闭))"
-        tyblue "  fingerprint                   ：空"
-        tyblue "  alpn                          ：此参数不生效 \\033[35m(可随意填写)"
-        purple "   (Qv2ray:TLS设置-ALPN)"
+        tyblue "  alpn                          ：此参数不生效，可随意设置"
+        purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：建议关闭"
         purple "   (V2RayN:设置页面-开启Mux多路复用)"
@@ -3162,9 +3199,9 @@ reinit_domain()
     systemctl stop cloudreve
     systemctl disable cloudreve
     local i
-    for i in ${!true_domain_list[@]}
+    for i in "${true_domain_list[@]}"
     do
-        rm -rf ${nginx_prefix}/html/${true_domain_list[$i]}
+        rm -rf "${nginx_prefix}/html/${i}"
     done
     rm -rf "${nginx_prefix}/certs"
     mkdir "${nginx_prefix}/certs"
@@ -3258,7 +3295,7 @@ delete_domain()
     fi
     local i
     tyblue "-----------------------请选择要删除的域名-----------------------"
-    for i in ${!domain_list[@]}
+    for i in "${!domain_list[@]}"
     do
         if [ ${domain_config_list[$i]} -eq 1 ]; then
             tyblue " $((i+1)). ${domain_list[$i]} ${true_domain_list[$i]}"
@@ -3313,7 +3350,7 @@ change_pretend()
     else
         local i
         tyblue "-----------------------请选择要修改伪装类型的域名-----------------------"
-        for i in ${!domain_list[@]}
+        for i in "${!domain_list[@]}"
         do
             if [ ${domain_config_list[$i]} -eq 1 ]; then
                 tyblue " $((i+1)). ${domain_list[$i]} ${true_domain_list[$i]}"
@@ -3384,7 +3421,7 @@ reinstall_cloudreve()
     ! ask_if "确定要继续吗？(y/n)" && return 0
     enter_temp_dir
     local i
-    for i in ${!pretend_list[@]}
+    for i in "${!pretend_list[@]}"
     do
         if [ "${pretend_list[$i]}" == "1" ]; then
             install_init_cloudreve "$i"
@@ -3551,7 +3588,7 @@ simplify_system()
     else
         local apt_utils_installed=0
         LANG="en_US.UTF-8" LANGUAGE="en_US:en" dpkg -s apt-utils 2>/dev/null | grep -qi 'status[ '$'\t]*:[ '$'\t]*install[ '$'\t]*ok[ '$'\t]*installed[ '$'\t]*$' && apt_utils_installed=1
-        local temp_remove_list=('openssl' 'snapd' 'kdump-tools' 'flex' 'make' 'automake' '^cloud-init' 'pkg-config' '^gcc-[1-9][0-9]*$' '^cpp-[1-9][0-9]*$' 'curl' '^python' '^libpython' 'dbus' 'cron' 'anacron' 'at' 'open-iscsi' 'rsyslog' 'acpid' 'libnetplan0' 'glib-networking-common' 'bcache-tools' '^bind([0-9]|-|$)' 'lshw' 'thermald' 'libdbus-glib-1-2' 'libevdev2' 'libupower-glib3' 'usb.ids' 'readline-common' '^libreadline' 'xz-utils' 'selinux-utils' 'wget' 'zip' 'unzip' 'bzip2' 'finalrd' '^cryptsetup' '^libplymouth' 'apt-utils' '^lib.*-dev' 'perl' '^perl-modules' '^x11' '^libx11')
+        local temp_remove_list=('cron' 'anacron' 'openssl' 'snapd' 'kdump-tools' 'flex' 'make' 'automake' '^cloud-init' 'pkg-config' '^gcc-[1-9][0-9]*$' '^cpp-[1-9][0-9]*$' 'curl' '^python' '^libpython' 'dbus' 'at' 'open-iscsi' 'rsyslog' 'acpid' 'libnetplan0' 'glib-networking-common' 'bcache-tools' '^bind([0-9]|-|$)' 'lshw' 'thermald' 'libdbus-glib-1-2' 'libevdev2' 'libupower-glib3' 'usb.ids' 'readline-common' '^libreadline' 'xz-utils' 'selinux-utils' 'wget' 'zip' 'unzip' 'bzip2' 'finalrd' '^cryptsetup' '^libplymouth' '^lib.*-dev' 'perl' '^perl-modules' '^x11' '^libx11' '^qemu-' '^xdg-' '^libglib' '^libicu' '^libxml' '^liburing' 'apt-utils')
         if ! $debian_package_manager -y --auto-remove purge "${temp_remove_list[@]}"; then
             $debian_package_manager -y -f install
             $debian_package_manager -y --auto-remove purge cron anacron || $debian_package_manager -y -f install
