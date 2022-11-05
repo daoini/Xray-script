@@ -1,72 +1,80 @@
 #!/bin/bash
 
 #系统信息
-#指令集
-machine=""
-#什么系统
-release=""
-#系统版本号
-systemVersion=""
-debian_package_manager=""
-redhat_package_manager=""
-#CPU线程数
-cpu_thread_num=""
-#现在有没有通过脚本启动swap
-using_swap_now=0
-#系统时区
-timezone=""
+# 指令集
+unset machine
+# 系统
+unset release
+# 系统版本
+unset systemVersion
+unset apt
+unset apt_no_install_recommends
+unset dnf
+unset dnf_no_install_recommends
+# CPU线程数
+unset cpu_thread_num
+# 系统时区
+unset timezone
+# ssh service name
+unset ssh_service
 
-#安装信息
-nginx_version="nginx-1.21.6"
-openssl_version="openssl-openssl-3.0.2"
+#安装配置信息
+nginx_version="nginx-1.23.2"
+openssl_version="openssl-openssl-3.0.5"
 nginx_prefix="/usr/local/nginx"
 nginx_config="${nginx_prefix}/conf.d/xray.conf"
 nginx_service="/etc/systemd/system/nginx.service"
 nginx_is_installed=""
 
-php_version="php-8.1.4"
+php_version="php-8.1.12"
 php_prefix="/usr/local/php"
 php_service="/etc/systemd/system/php-fpm.service"
-php_is_installed=""
+unset php_is_installed
 
-cloudreve_version="3.3.2"
+cloudreve_version="3.5.3"
 cloudreve_prefix="/usr/local/cloudreve"
 cloudreve_service="/etc/systemd/system/cloudreve.service"
-cloudreve_is_installed=""
+unset cloudreve_is_installed
 
-nextcloud_url="https://download.nextcloud.com/server/releases/nextcloud-22.2.0.zip"
+nextcloud_url="https://download.nextcloud.com/server/releases/nextcloud-25.0.0.zip"
 
 xray_config="/usr/local/etc/xray/config.json"
-xray_is_installed=""
+unset xray_is_installed
 
 temp_dir="/temp_install_update_xray_tls_web"
+unset is_installed
 
-is_installed=""
-
-update=""
-in_install_update_xray_tls_web=0
-
-#配置信息
-#域名列表 两个列表用来区别 *.主域名
+#连接配置信息
+# 域名列表 两个列表用来区别 www.主域名
 unset domain_list
 unset true_domain_list
 unset domain_config_list
-#域名伪装列表，对应域名列表
+# 域名伪装列表，对应域名列表
 unset pretend_list
 
 # TCP使用的会话层协议，0代表禁用，1代表VLESS
-protocol_1=""
+unset protocol_1
 # grpc使用的会话层协议，0代表禁用，1代表VLESS，2代表VMess
-protocol_2=""
+unset protocol_2
 # WebSocket使用的会话层协议，0代表禁用，1代表VLESS，2代表VMess
-protocol_3=""
+unset protocol_3
+# grpc的serviceName
+unset serviceName
+# ws的path
+unset path
+# TCP协议的vless uuid
+unset xid_1
+# grpc协议的vless/vmess uuid
+unset xid_2
+# ws协议的vless/vmess uuid
+unset xid_3
 
-serviceName=""
-path=""
-
-xid_1=""
-xid_2=""
-xid_3=""
+# 现在有没有通过脚本启动swap
+using_swap_now=0
+# 在更新
+unset update
+# 在 install_update_xray_tls_web 函数中
+in_install_update_xray_tls_web=0
 
 #功能性函数：
 #定义几个颜色
@@ -98,7 +106,7 @@ blue()                             #蓝色
 check_base_command()
 {
     local i
-    local temp_command_list=('bash' 'true' 'false' 'exit' 'echo' 'test' 'sort' 'sed' 'awk' 'grep' 'cut' 'cd' 'rm' 'cp' 'mv' 'head' 'tail' 'uname' 'tr' 'md5sum' 'cat' 'find' 'type' 'command' 'wc' 'ls' 'mktemp' 'swapon' 'swapoff' 'mkswap' 'chmod' 'chown' 'export')
+    local temp_command_list=('bash' 'sh' 'command' 'type' 'hash' 'install' 'true' 'false' 'exit' 'echo' 'test' 'sort' 'sed' 'awk' 'grep' 'cut' 'cd' 'rm' 'cp' 'mv' 'head' 'tail' 'uname' 'tr' 'md5sum' 'cat' 'find' 'wc' 'ls' 'mktemp' 'swapon' 'swapoff' 'mkswap' 'chmod' 'chown' 'chgrp' 'export' 'tar' 'gzip' 'mkdir' 'arch' 'uniq' 'dd' 'env')
     for i in "${temp_command_list[@]}"
     do
         if ! command -V "${i}" > /dev/null; then
@@ -169,6 +177,60 @@ ask_update_script_force()
         green "脚本已经是最新版本"
     fi
 }
+redhat_install()
+{
+    if $dnf_no_install_recommends -y install "$@"; then
+        return 0
+    fi
+
+
+    if $dnf --help | grep -q "\\-\\-enablerepo="; then
+        local enable_repo="--enablerepo="
+    else
+        local enable_repo="--enablerepo "
+    fi
+    if $dnf --help | grep -q "\\-\\-disablerepo="; then
+        local disable_repo="--disablerepo="
+    else
+        local disable_repo="--disablerepo "
+    fi
+    if [ $release == centos-stream ]; then
+        local epel_repo="epel,epel-next"
+    elif [ $release == oracle ]; then
+        if version_ge "$systemVersion" 9; then
+            local epel_repo="ol9_developer_EPEL"
+        elif version_ge "$systemVersion" 8; then
+            local epel_repo="ol8_developer_EPEL"
+        elif version_ge "$systemVersion" 7; then
+            local epel_repo="ol7_developer_EPEL"
+        else
+            local epel_repo="epel"
+        fi
+    else
+        local epel_repo="epel"
+    fi
+
+
+    if [ $release == fedora ]; then
+        if $dnf_no_install_recommends -y ${enable_repo}"remi" install "$@"; then
+            return 0
+        fi
+    else
+        if $dnf_no_install_recommends -y ${enable_repo}"${epel_repo}" install "$@"; then
+            return 0
+        fi
+        if $dnf_no_install_recommends -y ${enable_repo}"${epel_repo},powertools" install "$@" || $dnf_no_install_recommends -y ${enable_repo}"${epel_repo},PowerTools" install "$@"; then
+            return 0
+        fi
+    fi
+    if $dnf_no_install_recommends -y ${enable_repo}"*" ${disable_repo}"*-debug,*-debuginfo,*-source" install "$@"; then
+        return 0
+    fi
+    if $dnf_no_install_recommends -y ${enable_repo}"*" install "$@"; then
+        return 0
+    fi
+    return 1
+}
 #安装单个重要依赖
 test_important_dependence_installed()
 {
@@ -179,20 +241,25 @@ test_important_dependence_installed()
                 temp_exit_code=0
             else
                 red "安装依赖 \"$1\" 出错！"
-                green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+                green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
                 yellow "按回车键继续或者Ctrl+c退出"
                 read -s
             fi
-        elif $debian_package_manager -y --no-install-recommends install "$1"; then
+        elif $apt_no_install_recommends -y install "$1"; then
             temp_exit_code=0
         else
-            $debian_package_manager update
-            $debian_package_manager -y -f install
-            $debian_package_manager -y --no-install-recommends install "$1" && temp_exit_code=0
+            $apt update
+            $apt_no_install_recommends -y -f install
+            $apt_no_install_recommends -y install "$1" && temp_exit_code=0
         fi
     else
         if rpm -q "$2" > /dev/null 2>&1; then
-            if [ "$redhat_package_manager" == "dnf" ]; then
+            if [ "$dnf" == "microdnf" ]; then
+                redhat_install dnf
+                dnf="dnf"
+                dnf_no_install_recommends="dnf --setopt install_weak_deps=0"
+            fi
+            if [ "$dnf" == "dnf" ]; then
                 dnf mark install "$2" && temp_exit_code=0
             else
                 yumdb set reason user "$2" && temp_exit_code=0
@@ -219,10 +286,10 @@ check_important_dependence_installed()
 install_dependence()
 {
     if [ $release == "ubuntu" ] || [ $release == "debian" ] || [ $release == "deepin" ] || [ $release == "other-debian" ]; then
-        if ! $debian_package_manager -y --no-install-recommends install "$@"; then
-            $debian_package_manager update
-            $debian_package_manager -y -f install
-            if ! $debian_package_manager -y --no-install-recommends install "$@"; then
+        if ! $apt_no_install_recommends -y install "$@"; then
+            $apt update
+            $apt_no_install_recommends -y -f install
+            if ! $apt_no_install_recommends -y install "$@"; then
                 yellow "依赖安装失败！！"
                 green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
                 yellow "按回车键继续或者Ctrl+c退出"
@@ -254,8 +321,29 @@ install_dependence()
         fi
     fi
 }
-#检查CentOS8 epel源是否安装
-check_centos8_epel()
+# 防止apt卸载时自动安装替代软件
+apt_purge()
+{
+    local ret_code=0
+    mv /etc/apt/sources.list /etc/apt/sources.list.bak
+    mv /etc/apt/sources.list.d /etc/apt/sources.list.d.bak
+    $apt -y purge "$@" || ret_code=1
+    mv /etc/apt/sources.list.bak /etc/apt/sources.list
+    mv /etc/apt/sources.list.d.bak /etc/apt/sources.list.d
+    return $ret_code
+}
+apt_auto_remove_purge()
+{
+    local ret_code=0
+    mv /etc/apt/sources.list /etc/apt/sources.list.bak
+    mv /etc/apt/sources.list.d /etc/apt/sources.list.d.bak
+    $apt -y --auto-remove purge "$@" || ret_code=1
+    mv /etc/apt/sources.list.bak /etc/apt/sources.list
+    mv /etc/apt/sources.list.d.bak /etc/apt/sources.list.d
+    return $ret_code
+}
+#安装epel源
+install_epel()
 {
     if [ $release == "centos" ] && version_ge "$systemVersion" "8"; then
         if $redhat_package_manager --help | grep -qw "\\-\\-all"; then
@@ -266,6 +354,58 @@ check_centos8_epel()
         if ! $temp_command | awk '{print $1}' | grep -q epel; then
             check_important_dependence_installed "" "epel-release"
         fi
+    elif [ $release == oracle ]; then
+        if version_ge "$systemVersion" 9; then
+            ret=-1
+        elif version_ge "$systemVersion" 8; then
+            redhat_install oracle-epel-release-el8 || ret=-1
+        elif version_ge "$systemVersion" 7; then
+            redhat_install oracle-epel-release-el7 || ret=-1
+        else
+            ret=-1
+        fi
+    elif [ $release == rhel ]; then
+        if version_ge "$systemVersion" 9; then
+            ret=-1
+        elif version_ge "$systemVersion" 8; then
+            subscription-manager repos --enable "codeready-builder-for-rhel-8-$(arch)-rpms" || ret=-1
+            redhat_install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm" || ret=-1
+        elif version_ge "$systemVersion" 7; then
+            subscription-manager repos --enable "rhel-*-optional-rpms" --enable "rhel-*-extras-rpms" --enable "rhel-ha-for-rhel-*-server-rpms" || ret=-1
+            redhat_install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm" || ret=-1
+        else
+            ret=-1
+        fi
+    else
+        ############
+        if [ $dnf == microdnf ]; then
+            check_important_dependence_installed "" dnf
+            dnf="dnf"
+            dnf_no_install_recommends="dnf --setopt install_weak_deps=0"
+        fi
+        if [ $dnf == dnf ]; then
+            check_important_dependence_installed "" dnf-plugins-core
+            dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled PowerTools
+        fi
+        redhat_install epel-release || ret=-1
+    fi
+
+    if [ $ret -ne 0 ]; then
+        if [ $release == other-redhat ]; then
+            if $dnf repolist epel | grep -q epel; then
+                return
+            fi
+            yellow "epel源安装失败，这可能导致之后的安装失败，也可能没有影响(取决于你的系统的repo包含软件是否丰富)"
+            echo
+            tyblue "除了安装epel源过程出错，也有可能是因为你使用的系统比较冷门导致安装失败"
+            tyblue "这种情况下可以手动安装epel源，之后重新运行脚本"
+        else
+            yellow "epel源安装失败！！"
+        fi
+        echo
+        green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
+        yellow "按回车键继续或者Ctrl+c退出"
+        read -s
     fi
 }
 # 检查procps是否安装
@@ -538,6 +678,9 @@ gen_cflags()
     if gcc -v --help 2>&1 | grep -qw "\\-fdwarf2\\-cfi\\-asm"; then
         cflags+=('-fdwarf2-cfi-asm')
     fi
+    if gcc -v --help 2>&1 | grep -qw "\\-fplt"; then
+        cflags+=('-fplt')
+    fi
     if gcc -v --help 2>&1 | grep -qw "\\-ftrapv"; then
         cflags+=('-fno-trapv')
     fi
@@ -583,6 +726,9 @@ gen_cxxflags()
     fi
     if g++ -v --help 2>&1 | grep -qw "\\-fdwarf2\\-cfi\\-asm"; then
         cxxflags+=('-fdwarf2-cfi-asm')
+    fi
+    if g++ -v --help 2>&1 | grep -qw "\\-fplt"; then
+        cxxflags+=('-fplt')
     fi
     if g++ -v --help 2>&1 | grep -qw "\\-ftrapv"; then
         cxxflags+=('-fno-trapv')
@@ -634,29 +780,39 @@ if [[ ! -d /dev/shm ]]; then
     red "/dev/shm不存在，不支持的系统"
     exit 1
 fi
-if [[ ! -L /etc/localtime ]]; then
-    red "/etc/localtime不是链接，不支持的系统"
-    exit 1
-fi
-if [[ "$(type -P apt)" ]]; then
-    if [[ "$(type -P dnf)" ]] || [[ "$(type -P yum)" ]]; then
-        red "同时存在apt和yum/dnf"
+if [[ "$(type -P apt)" ]] || [ "$(type -P apt-get)" ]; then
+    if [[ "$(type -P dnf)" ]] || [[ "$(type -P microdnf)" ]] || [[ "$(type -P yum)" ]]; then
+        red "同时存在 apt/apt-get 和 dnf/microdnf/yum"
         red "不支持的系统！"
         exit 1
     fi
     release="other-debian"
-    debian_package_manager="apt"
-    redhat_package_manager="true"
-elif [[ "$(type -P dnf)" ]]; then
+    dnf="true"
+    dnf_no_install_recommends="true"
+    if [[ "$(type -P apt)" ]]; then
+        apt="apt"
+    else
+        apt="apt-get"
+    fi
+    apt_no_install_recommends="$apt --no-install-recommends"
+elif [[ "$(type -P dnf)" ]] || [[ "$(type -P microdnf)" ]] || [[ "$(type -P yum)" ]]; then
     release="other-redhat"
-    redhat_package_manager="dnf"
-    debian_package_manager="true"
-elif [[ "$(type -P yum)" ]]; then
-    release="other-redhat"
-    redhat_package_manager="yum"
-    debian_package_manager="true"
+    apt="true"
+    apt_no_install_recommends="true"
+    if [[ "$(type -P dnf)" ]]; then
+        dnf="dnf"
+    elif [[ "$(type -P microdnf)" ]]; then
+        dnf="microdnf"
+    else
+        dnf="yum"
+    fi
+    if $dnf --help | grep -q "\\-\\-setopt="; then
+        dnf_no_install_recommends="$dnf --setopt=install_weak_deps=0"
+    else
+        dnf_no_install_recommends="$dnf --setopt install_weak_deps=0"
+    fi
 else
-    red "apt yum dnf命令均不存在"
+    red "apt,apt-get,dnf,microdnf,yum命令均不存在"
     red "不支持的系统"
     exit 1
 fi
@@ -673,6 +829,11 @@ if ! check_sudo; then
     yellow "acme.sh不支持sudo，请使用root用户运行此脚本"
     tyblue "详情请见：https://github.com/acmesh-official/acme.sh/wiki/sudo"
     exit 1
+fi
+if systemctl cat ssh > /dev/null; then
+    ssh_service="ssh"
+else
+    ssh_service="sshd"
 fi
 [ -e $nginx_config ] && nginx_is_installed=1 || nginx_is_installed=0
 [ -e ${php_prefix}/php-fpm.service.default ] && php_is_installed=1 || php_is_installed=0
@@ -755,8 +916,8 @@ check_nginx_installed_system()
     yellow " 建议使用纯净的系统运行此脚本"
     echo
     ! ask_if "是否尝试卸载？(y/n)" && exit 0
-    $debian_package_manager -y purge nginx
-    $redhat_package_manager -y remove nginx
+    apt_purge '^nginx' '^libnginx'
+    $dnf -y remove 'nginx*'
     if [[ ! -f /usr/lib/systemd/system/nginx.service ]] && [[ ! -f /lib/systemd/system/nginx.service ]]; then
         return 0
     fi
@@ -781,8 +942,8 @@ check_SELinux()
         sed -i 's/^[ \t]*SELINUX[ \t]*=[ \t]*enforcing[ \t]*$/SELINUX=disabled/g' /etc/sysconfig/selinux
         sed -i 's/^[ \t]*SELINUX[ \t]*=[ \t]*enforcing[ \t]*$/SELINUX=disabled/g' /etc/selinux/config
         if [ $selinux_utils_is_installed -eq 0 ]; then
-            $redhat_package_manager -y remove libselinux-utils
-            $debian_package_manager -y purge selinux-utils
+            $dnf -y remove libselinux-utils
+            apt_purge selinux-utils
         fi
     }
     if getenforce 2>/dev/null | grep -wqi Enforcing || grep -Eq '^[ '$'\t]*SELINUX[ '$'\t]*=[ '$'\t]*enforcing[ '$'\t]*$' /etc/sysconfig/selinux 2>/dev/null || grep -Eq '^[ '$'\t]*SELINUX[ '$'\t]*=[ '$'\t]*enforcing[ '$'\t]*$' /etc/selinux/config 2>/dev/null; then
@@ -814,7 +975,7 @@ check_ssh_timeout()
     echo "ClientAliveInterval 30" >> /etc/ssh/sshd_config
     echo "ClientAliveCountMax 60" >> /etc/ssh/sshd_config
     echo "#This file has been edited by Xray-TLS-Web-setup-script" >> /etc/ssh/sshd_config
-    systemctl restart sshd
+    systemctl restart $ssh_service
     green  "----------------------配置完成----------------------"
     tyblue " 请重新连接服务器以让配置生效"
     if [ $in_install_update_xray_tls_web -eq 1 ]; then
@@ -831,11 +992,11 @@ uninstall_firewall()
 {
     green "正在删除防火墙。。。"
     ufw disable
-    $debian_package_manager -y purge firewalld
-    $debian_package_manager -y purge ufw
+    apt_purge firewalld
+    apt_purge ufw
     systemctl stop firewalld
     systemctl disable firewalld
-    $redhat_package_manager -y remove firewalld
+    $dnf -y remove firewalld
     green "正在删除阿里云盾和腾讯云盾 (仅对阿里云和腾讯云服务器有效)。。。"
     #阿里云盾
     pkill -9 assist_daemon
@@ -852,8 +1013,8 @@ uninstall_firewall()
     systemctl disable AssistDaemon
     systemctl stop aliyun
     systemctl disable aliyun
-    $debian_package_manager -y purge aliyun-assist
-    $redhat_package_manager -y remove aliyun_assist
+    apt_purge aliyun-assist
+    $dnf -y remove aliyun_assist
     rm -rf /usr/local/share/aliyun-assist
     rm -rf /usr/sbin/aliyun_installer
     rm -rf /usr/sbin/aliyun-service
@@ -921,9 +1082,9 @@ doupdate()
         check_important_dependence_installed "ubuntu-release-upgrader-core"
         echo -e "\\n\\n\\n"
         tyblue "------------------请选择升级系统版本--------------------"
-        tyblue " 1. beta版(测试版)          当前版本号：21.10"
-        tyblue " 2. release版(稳定版)       当前版本号：21.04"
-        tyblue " 3. LTS版(长期支持版)       当前版本号：20.04"
+        tyblue " 1. beta版(测试版)          当前版本号：22.10"
+        tyblue " 2. release版(稳定版)       当前版本号：22.10"
+        tyblue " 3. LTS版(长期支持版)       当前版本号：22.04"
         tyblue " 0. 不升级系统"
         tyblue "-------------------------注意事项-------------------------"
         yellow " 1.升级过程中遇到问话/对话框，如果不清楚，请选择yes/y/第一个选项"
@@ -987,12 +1148,12 @@ doupdate()
                     do-release-upgrade
                     ;;
             esac
-            $debian_package_manager -y --purge autoremove
-            $debian_package_manager update
-            $debian_package_manager -y --purge autoremove
-            $debian_package_manager -y --auto-remove --purge --no-install-recommends full-upgrade
-            $debian_package_manager -y --purge autoremove
-            $debian_package_manager clean
+            $apt -y --purge autoremove
+            $apt update
+            $apt -y --purge autoremove
+            $apt -y --auto-remove --purge --no-install-recommends full-upgrade
+            $apt -y --purge autoremove
+            $apt clean
         done
     }
     while ((1))
@@ -1020,23 +1181,23 @@ doupdate()
     done
     if [ $choice -eq 1 ]; then
         updateSystem
-        $debian_package_manager -y --purge autoremove
-        $debian_package_manager clean
+        $apt -y --purge autoremove
+        $apt clean
     elif [ $choice -eq 2 ]; then
         tyblue "-----------------------即将开始更新-----------------------"
         yellow " 更新过程中遇到问话/对话框，如果不明白，选择yes/y/第一个选项"
         yellow " 按回车键继续。。。"
         read -s
-        $debian_package_manager -y --purge autoremove
-        $debian_package_manager update
-        $debian_package_manager -y --purge autoremove
-        $debian_package_manager -y --auto-remove --purge --no-install-recommends full-upgrade
-        $debian_package_manager -y --purge autoremove
-        $debian_package_manager clean
-        $redhat_package_manager -y autoremove
-        $redhat_package_manager -y update
-        $redhat_package_manager -y autoremove
-        $redhat_package_manager clean all
+        $apt -y --purge autoremove
+        $apt update
+        $apt -y --purge autoremove
+        $apt -y --auto-remove --purge --no-install-recommends full-upgrade
+        $apt -y --purge autoremove
+        $apt clean
+        $dnf -y autoremove
+        $dnf_no_install_recommends -y upgrade
+        $dnf -y autoremove
+        $dnf clean all
     fi
 }
 
@@ -1148,8 +1309,8 @@ install_bbr()
                 yellow "没有内核可卸载"
                 return 0
             fi
-            $debian_package_manager -y purge "${kernel_list_image[@]}" "${kernel_list_modules[@]}" && exit_code=0
-            [ $exit_code -eq 1 ] && $debian_package_manager -y -f install
+            apt_purge "${kernel_list_image[@]}" "${kernel_list_modules[@]}" && exit_code=0
+            [ $exit_code -eq 1 ] && $apt_no_install_recommends -y -f install
             apt-mark manual "^grub"
         else
             rpm -qa > "temp_installed_list"
@@ -1208,8 +1369,8 @@ install_bbr()
                 yellow "没有内核可卸载"
                 return 0
             fi
-            #$redhat_package_manager -y remove "${kernel_list[@]}" "${kernel_list_headers[@]}" "${kernel_list_modules[@]}" "${kernel_list_core[@]}" "${kernel_list_devel[@]}" && exit_code=0
-            $redhat_package_manager -y remove "${kernel_list[@]}" "${kernel_list_modules[@]}" "${kernel_list_core[@]}" "${kernel_list_devel[@]}" && exit_code=0
+            #$dnf -y remove "${kernel_list[@]}" "${kernel_list_headers[@]}" "${kernel_list_modules[@]}" "${kernel_list_core[@]}" "${kernel_list_devel[@]}" && exit_code=0
+            $dnf -y remove "${kernel_list[@]}" "${kernel_list_modules[@]}" "${kernel_list_core[@]}" "${kernel_list_devel[@]}" && exit_code=0
         fi
         if [ $exit_code -eq 0 ]; then
             green "卸载成功"
@@ -1352,9 +1513,9 @@ install_bbr()
                     if ! version_ge "$(dpkg --list | grep '^[ '$'\t]*ii[ '$'\t][ '$'\t]*linux-base[ '$'\t]' | awk '{print $3}')" "4.5ubuntu1~16.04.1"; then
                         install_dependence linux-base
                         if ! version_ge "$(dpkg --list | grep '^[ '$'\t]*ii[ '$'\t][ '$'\t]*linux-base[ '$'\t]' | awk '{print $3}')" "4.5ubuntu1~16.04.1"; then
-                            if ! $debian_package_manager update; then
-                                red "$debian_package_manager update出错"
-                                green  "欢迎进行Bug report(https://github.com/kirin10000/Xray-script/issues)，感谢您的支持"
+                            if ! $apt update; then
+                                red "$apt update出错"
+                                green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
                                 yellow "按回车键继续或者Ctrl+c退出"
                                 read -s
                             fi
@@ -1726,7 +1887,44 @@ install_base_dependence()
     if [ $release == "centos" ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
         install_dependence wget tar gzip xz gcc gcc-c++ make
     else
-        install_dependence wget tar gzip xz-utils gcc g++ make
+        install_dependence ca-certificates wget gcc g++ make perl-base perl
+    fi
+}
+install_php_compile_toolchains()
+{
+    green "正在安装php编译工具链。。。"
+    if [ $release == "centos" ] || [ $release == centos-stream ] || [ $release == oracle ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
+        install_dependence ca-certificates wget xz gcc gcc-c++ make pkgconf-pkg-config autoconf git
+    else
+        install_dependence ca-certificates wget xz-utils gcc g++ make pkg-config autoconf git
+    fi
+}
+install_nginx_dependence()
+{
+    green "正在安装Nginx依赖。。。"
+    if [ $release == "centos" ] || [ $release == centos-stream ] || [ $release == oracle ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
+        install_dependence pcre2-devel zlib-devel libxml2-devel libxslt-devel gd-devel geoip-devel perl-ExtUtils-Embed gperftools-devel perl-devel
+    else
+        install_dependence libpcre2-dev zlib1g-dev libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libgoogle-perftools-dev libperl-dev
+    fi
+}
+install_php_dependence()
+{
+    green "正在安装php依赖。。。"
+    if [ $release == "centos" ] || [ $release == centos-stream ] || [ $release == oracle ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
+        fedora_install_remi
+        install_dependence libxml2-devel sqlite-devel systemd-devel libacl-devel openssl-devel krb5-devel pcre2-devel zlib-devel bzip2-devel libcurl-devel gdbm-devel libdb-devel tokyocabinet-devel lmdb-devel enchant-devel libffi-devel libpng-devel gd-devel libwebp-devel libjpeg-turbo-devel libXpm-devel freetype-devel gmp-devel uw-imap-devel libicu-devel openldap-devel oniguruma-devel unixODBC-devel freetds-devel libpq-devel aspell-devel libedit-devel net-snmp-devel libsodium-devel libargon2-devel libtidy-devel libxslt-devel libzip-devel ImageMagick-devel
+    else
+        if ! $apt_no_install_recommends -y install libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-2-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev libmagickwand-dev && ! $apt_no_install_recommends -y install libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev libmagickwand-dev; then
+            $apt update
+            $apt_no_install_recommends -y -f install
+            if ! $apt_no_install_recommends -y install libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-2-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev libmagickwand-dev && ! $apt_no_install_recommends -y install libxml2-dev libsqlite3-dev libsystemd-dev libacl1-dev libapparmor-dev libssl-dev libkrb5-dev libpcre2-dev zlib1g-dev libbz2-dev libcurl4-openssl-dev libqdbm-dev libdb-dev libtokyocabinet-dev liblmdb-dev libenchant-dev libffi-dev libpng-dev libgd-dev libwebp-dev libjpeg-dev libxpm-dev libfreetype6-dev libgmp-dev libc-client2007e-dev libicu-dev libldap2-dev libsasl2-dev libonig-dev unixodbc-dev freetds-dev libpq-dev libpspell-dev libedit-dev libmm-dev libsnmp-dev libsodium-dev libargon2-dev libtidy-dev libxslt1-dev libzip-dev libmagickwand-dev; then
+                yellow "依赖安装失败！！"
+                green  "欢迎进行Bug report(https://github.com/daoini/Xray-script/issues)，感谢您的支持"
+                yellow "按回车键继续或者Ctrl+c退出"
+                read -s
+            fi
+        fi
     fi
 }
 install_acme_dependence()
@@ -1873,6 +2071,15 @@ date.timezone=$timezone
 ;如果使用mysql，并且使用unix domain socket方式连接，请正确设置以下内容
 ;pdo_mysql.default_socket=/var/run/mysqld/mysqld.sock
 ;mysqli.default_socket=/var/run/mysqld/mysqld.sock
+
+memory_limit=-1
+post_max_size=0
+upload_max_filesize=9223372036854775807
+max_file_uploads=50000
+max_execution_time=0
+max_input_time=0
+output_buffering=4096
+session.auto_start=0
 EOF
     install -m 644 "${php_prefix}/php-fpm.service.default" $php_service
 cat >> $php_service <<EOF
@@ -2441,7 +2648,6 @@ cat >> $xray_config <<EOF
                         "http/1.1"
                     ],
                     "minVersion": "1.2",
-                    "cipherSuites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
                     "certificates": [
 EOF
     for ((i=0;i<${#true_domain_list[@]};i++))
@@ -2771,7 +2977,7 @@ print_config_info()
         purple "                                           (此选项决定是否伪造浏览器指纹，空代表不伪造)"
         tyblue "  alpn                          ："
         tyblue "                                  伪造浏览器指纹  ：此参数不生效，可随意设置"
-        tyblue "                                  不伪造浏览器指纹：serverName填的域名对应的伪装网站为网盘则设置为\\033[33mhttp/1.1\\033[36m，否则设置为\\033[33m空\\033[36m或\\033[33mh2,http/1.1"
+        tyblue "                                  不伪造浏览器指纹：若serverName填的域名对应的伪装网站为网盘，建议设置为\\033[33mhttp/1.1\\033[36m；否则建议设置为\\033[33mh2,http/1.1 \\033[35m(此选项为空/未配置时，默认值为\"h2,http/1.1\")"
         purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：使用XTLS必须关闭;不使用XTLS也建议关闭"
@@ -2816,7 +3022,9 @@ print_config_info()
         purple "   (V2RayN(G):SNI和伪装域名;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
         tyblue "  allowInsecure                 ：\\033[33mfalse"
         purple "   (Qv2ray:TLS设置-允许不安全的证书(不打勾);Shadowrocket:允许不安全(关闭))"
-        tyblue "  alpn                          ：\\033[33m空\\033[36m或\\033[33mh2,http/1.1"
+        tyblue "  fingerprint                   ：\\033[33m空\\033[36m/\\033[33mchrome\\033[32m(推荐)\\033[36m/\\033[33mfirefox\\033[36m/\\033[33msafari"
+        purple "                                           (此选项决定是否伪造浏览器指纹，空代表不伪造)"
+        tyblue "  alpn                          ：建议设置为\\033[33mh2,http/1.1 \\033[35m(此选项为空/未配置时，默认值为\"h2,http/1.1\")"
         purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：强烈建议关闭"
@@ -2862,8 +3070,9 @@ print_config_info()
         purple "   (V2RayN(G):SNI和伪装域名;Qv2ray:TLS设置-服务器地址;Shadowrocket:Peer 名称)"
         tyblue "  allowInsecure                 ：\\033[33mfalse"
         purple "   (Qv2ray:TLS设置-允许不安全的证书(不打勾);Shadowrocket:允许不安全(关闭))"
-        tyblue "  alpn                          ：此参数不生效，可随意设置"
-        purple "   (Qv2ray:TLS设置-ALPN) (注意Qv2ray如果要设置alpn为h2,http/1.1，请填写\"h2|http/1.1\")"
+        tyblue "  fingerprint                   ：\\033[33m空\\033[32m(推荐)\\033[36m/\\033[33mchrome\\033[36m/\\033[33mfirefox\\033[36m/\\033[33msafari"
+        purple "                                           (此选项决定是否伪造浏览器指纹，空代表不伪造)"
+        tyblue "  alpn                          ：此参数不生效，可随意设置 \\033[35m(Websocket模式下alpn将被固定为\"http/1.1\")"
         tyblue " ------------------------其他-----------------------"
         tyblue "  Mux(多路复用)                 ：建议关闭"
         purple "   (V2RayN:设置页面-开启Mux多路复用)"
@@ -2874,14 +3083,14 @@ print_config_info()
     echo
     yellow " 关于fingerprint与alpn，详见：https://github.com/daoini/Xray-script#关于tls握手tls指纹和alpn"
     echo
-    blue   " 若想实现Fullcone(NAT类型开放)，需要达成以下条件："
+    blue   " 若想实现Fullcone(NAT类型开放)，需要以下条件："
     blue   "   1. 确保客户端核心为 Xray v1.3.0+"
     blue   "   2. 若您正在使用Netch作为客户端，请不要使用模式 [1] 连接 (可使用模式 [3] Bypass LAN )"
     blue   "   3. 如果测试系统为Windows，并且正在使用透明代理或TUN/Bypass LAN，请确保当前网络设置为专用网络"
     echo
     blue   " 若想实现WebSocket 0-rtt，请将客户端核心升级至 Xray v1.4.0+"
     echo
-    tyblue " 脚本最后更新时间：2021.09.10"
+    tyblue " 脚本最后更新时间：2022.10.31"
     echo
     red    " 此脚本仅供交流学习使用，请勿使用此脚本行违法之事。网络非法外之地，行非法之事，必将接受法律制裁!!!!"
     tyblue " 2020.11"
@@ -2891,7 +3100,7 @@ install_update_xray_tls_web()
 {
     in_install_update_xray_tls_web=1
     check_nginx_installed_system
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
     check_SELinux
     check_important_dependence_installed net-tools net-tools
     check_port
@@ -2907,7 +3116,7 @@ install_update_xray_tls_web()
     doupdate
     enter_temp_dir
     install_bbr
-    $debian_package_manager -y -f install
+    $apt_no_install_recommends -y -f install
 
     #读取信息
     if [ $update -eq 0 ]; then
@@ -3003,10 +3212,13 @@ install_update_xray_tls_web()
     done
     install_base_dependence
     install_acme_dependence
-    install_nginx_dependence
-    [ $install_php -eq 1 ] && install_php_dependence
-    $debian_package_manager clean
-    $redhat_package_manager clean all
+    if [ $update -eq 0 ]; then
+        install_web_dependence ""
+    else
+        [ $cloudreve_is_installed -eq 1 ] && install_web_dependence "1"
+    fi
+    $apt clean
+    $dnf clean all
 
     #编译&&安装php
     if [ $install_php -eq 1 ]; then
@@ -3097,7 +3309,7 @@ full_install_php()
 #安装/检查更新/更新php
 install_check_update_update_php()
 {
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
     check_SELinux
     check_important_dependence_installed lsb-release redhat-lsb-core
     get_system_info
@@ -3168,7 +3380,7 @@ install_check_update_update_php()
 check_update_update_nginx()
 {
     check_nginx_installed_system
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
     check_SELinux
     check_important_dependence_installed lsb-release redhat-lsb-core
     get_system_info
@@ -3237,8 +3449,8 @@ restart_xray_tls_web()
 }
 reinit_domain()
 {
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
-    check_important_dependence_installed net-tools net-tools
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    check_important_dependence_installed iproute2 iproute
     check_port
     check_important_dependence_installed lsb-release redhat-lsb-core
     get_system_info
@@ -3307,8 +3519,8 @@ reinit_domain()
 }
 add_domain()
 {
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
-    check_important_dependence_installed net-tools net-tools
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    check_important_dependence_installed iproute2 iproute
     check_port
     check_important_dependence_installed lsb-release redhat-lsb-core
     get_system_info
@@ -3416,8 +3628,8 @@ delete_domain()
 }
 change_pretend()
 {
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
-    check_important_dependence_installed lsb-release redhat-lsb-core
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    check_important_dependence_installed tzdata tzdata
     get_system_info
     check_important_dependence_installed ca-certificates ca-certificates
     check_important_dependence_installed wget wget
@@ -3487,7 +3699,11 @@ change_pretend()
 }
 reinstall_cloudreve()
 {
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    get_config_info
+    ! check_need_cloudreve && red "Cloudreve目前没有绑定域名" && return 1
+    red "重新安装Cloudreve将删除所有的网盘文件以及帐户信息，并重置管理员密码"
+    ! ask_if "确定要继续吗？(y/n)" && return 0
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
     check_SELinux
     check_important_dependence_installed ca-certificates ca-certificates
     check_important_dependence_installed wget wget
@@ -3640,8 +3856,8 @@ simplify_system()
         yellow "请先停止Xray-TLS+Web"
         return 1
     fi
-    [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
-    check_important_dependence_installed lsb-release redhat-lsb-core
+    [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+    check_important_dependence_installed tzdata tzdata
     get_system_info
     check_procps_installed
     yellow "警告：此功能可能导致某些VPS无法开机，请谨慎使用"
@@ -3662,22 +3878,51 @@ simplify_system()
         cp /etc/ssh/sshd_config sshd_config
     fi
     uninstall_firewall
-    if [ $release == "centos" ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
-        $redhat_package_manager -y remove openssl "perl*" xz libselinux-utils zip unzip bzip2 wget procps-ng procps
-    else
-        local apt_utils_installed=0
-        LANG="en_US.UTF-8" LANGUAGE="en_US:en" dpkg -s apt-utils 2>/dev/null | grep -qi 'status[ '$'\t]*:[ '$'\t]*install[ '$'\t]*ok[ '$'\t]*installed[ '$'\t]*$' && apt_utils_installed=1
-        local temp_remove_list=('cron' 'anacron' 'openssl' 'snapd' 'kdump-tools' 'flex' 'make' 'automake' '^cloud-init' 'pkg-config' '^gcc-[1-9][0-9]*$' '^cpp-[1-9][0-9]*$' 'curl' '^python' '^libpython' 'dbus' 'at' 'open-iscsi' 'rsyslog' 'acpid' 'libnetplan0' 'glib-networking-common' 'bcache-tools' '^bind([0-9]|-|$)' 'lshw' 'thermald' 'libdbus-glib-1-2' 'libevdev2' 'libupower-glib3' 'usb.ids' 'readline-common' '^libreadline' 'xz-utils' 'selinux-utils' 'wget' 'zip' 'unzip' 'bzip2' 'finalrd' '^cryptsetup' '^libplymouth' '^lib.*-dev' 'perl' '^perl-modules' '^x11' '^libx11' '^qemu-' '^xdg-' '^libglib' '^libicu' '^libxml' '^liburing' 'apt-utils')
-        if ! $debian_package_manager -y --auto-remove purge "${temp_remove_list[@]}"; then
-            $debian_package_manager -y -f install
-            $debian_package_manager -y --auto-remove purge cron anacron || $debian_package_manager -y -f install
+    if [ $release == "centos" ] || [ $release == centos-stream ] || [ $release == oracle ] || [ $release == "rhel" ] || [ $release == "fedora" ] || [ $release == "other-redhat" ]; then
+        local temp_backup=()
+        local temp_important=('openssh-server' 'initscripts' 'tar')
+        for i in "${temp_important[@]}"
+        do
+            rpm -q "$i" > /dev/null 2>&1 && temp_backup+=("$i")
+        done
+        local temp_remove_list=('openssl' 'perl*' 'xz' 'libselinux-utils' 'zip' 'unzip' 'bzip2' 'wget' 'procps-ng' 'procps' 'iproute' 'dbus-glib' 'udisk*' 'libudisk*' 'gdisk*' 'libblock*' '*-devel' 'nginx*')
+        #libxmlb
+        if ! $dnf -y remove "${temp_remove_list[@]}"; then
             for i in "${temp_remove_list[@]}"
             do
-                $debian_package_manager -y --auto-remove purge "$i" || $debian_package_manager -y -f install
+                $dnf -y remove "$i"
             done
         fi
-        [ $apt_utils_installed -eq 1 ] && check_important_dependence_installed apt-utils ""
-        [ $release == "ubuntu" ] && version_ge "$systemVersion" "18.04" && check_important_dependence_installed netplan.io
+        for i in "${temp_backup[@]}"
+        do
+            check_important_dependence_installed "" "$i"
+        done
+    else
+        local temp_backup=()
+        local temp_important=('apt-utils' 'whiptail' 'initramfs-tools' 'isc-dhcp-client' 'netplan.io' 'openssh-server' 'network-manager')
+        for i in "${temp_important[@]}"
+        do
+            LANG="en_US.UTF-8" LANGUAGE="en_US:en" dpkg -s "$i" 2>/dev/null | grep -qi 'status[ '$'\t]*:[ '$'\t]*install[ '$'\t]*ok[ '$'\t]*installed[ '$'\t]*$' && temp_backup+=("$i")
+        done
+        temp_backup+=($(dpkg --list 'grub*' | grep '^[ '$'\t]*ii[ '$'\t]' | awk '{print $2}'))
+        local temp_remove_list=('cron' 'anacron' '^cups' '^foomatic' 'openssl' 'snapd' 'kdump-tools' 'flex' 'make' 'automake' '^cloud-init' 'pkg-config' '^gcc-[1-9][0-9]*$' '^cpp-[1-9][0-9]*$' 'curl' '^python' '^libpython' 'dbus' 'at' 'open-iscsi' 'rsyslog' 'acpid' 'libnetplan0' 'glib-networking-common' 'bcache-tools' '^bind([0-9]|-|$)' 'lshw' '^thermald' '^libdbus' '^libevdev' '^libupower' 'readline-common' '^libreadline' 'xz-utils' 'selinux-utils' 'wget' 'zip' 'unzip' 'bzip2' 'finalrd' '^cryptsetup' '^libplymouth' '^lib.*-dev$' 'perl' '^perl-modules' '^x11' '^libx11' '^qemu' '^xdg-' '^libglib' '^libicu' '^libxml' '^liburing' '^libisc' '^libdns' '^isc-' 'net-tools' 'xxd' 'xkb-data' 'lsof' '^task' '^usb' '^libusb' '^doc' '^libwrap' '^libtext' '^libmagic' '^libpci' '^liblocale' '^keyboard' '^libuni[^s]' '^libpipe' 'man-db' '^manpages' '^liblock' '^liblog' '^libxapian' '^libpsl' '^libpap' '^libgs[0-9]' '^libpaper' '^postfix' '^nginx' '^libnginx')
+        #'^libp11' '^libtasn' '^libkey' '^libnet'
+        if ! apt_auto_remove_purge "${temp_remove_list[@]}"; then
+            $apt_no_install_recommends -y -f install
+            apt_auto_remove_purge cron anacron || $apt_no_install_recommends -y -f install
+            apt_auto_remove_purge '^cups' '^foomatic' || $apt_no_install_recommends -y -f install
+            for i in "${temp_remove_list[@]}"
+            do
+                apt_auto_remove_purge "$i" || $apt_no_install_recommends -y -f install
+            done
+        fi
+        apt_auto_remove_purge '^libpop' || $apt_no_install_recommends -y -f install
+        apt_auto_remove_purge '^libslang' || $apt_no_install_recommends -y -f install
+        apt_auto_remove_purge apt-utils || $apt_no_install_recommends -y -f install
+        for i in "${temp_backup[@]}"
+        do
+            check_important_dependence_installed "$i" ""
+        done
     fi
     check_important_dependence_installed openssh-server openssh-server
     ([ $nginx_is_installed -eq 1 ] || [ $php_is_installed -eq 1 ] || [ $is_installed -eq 1 ]) && check_centos8_epel
@@ -3688,7 +3933,7 @@ simplify_system()
         cp sshd_config /etc/ssh/sshd_config
         cd /
         rm -rf "$temp_dir"
-        systemctl restart sshd
+        systemctl restart $ssh_service
     fi
     green "精简完成"
 }
@@ -3821,32 +4066,32 @@ start_menu()
     if [ $choice -eq 1 ]; then
         install_update_xray_tls_web
     elif [ $choice -eq 2 ]; then
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed wget wget
         ask_update_script_force
         bash "${BASH_SOURCE[0]}" --update
     elif [ $choice -eq 3 ]; then
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed wget wget
         ask_update_script
     elif [ $choice -eq 4 ]; then
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
-        check_important_dependence_installed lsb-release redhat-lsb-core
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        check_important_dependence_installed tzdata tzdata
         get_system_info
         check_ssh_timeout
         check_procps_installed
         doupdate
         green "更新完成！"
     elif [ $choice -eq 5 ]; then
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed wget wget
         check_procps_installed
         enter_temp_dir
         install_bbr
-        $debian_package_manager -y -f install
+        $apt_no_install_recommends -y -f install
         rm -rf "$temp_dir"
     elif [ $choice -eq 6 ]; then
         install_check_update_update_php
@@ -3858,7 +4103,7 @@ start_menu()
             tyblue "在 修改伪装网站类型/重置域名/添加域名 里选择Cloudreve"
             return 1
         fi
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_SELinux
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed wget wget
@@ -3871,7 +4116,7 @@ start_menu()
         rm -rf "$temp_dir"
         green "Cloudreve更新完成！"
     elif [ $choice -eq 9 ]; then
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_SELinux
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed curl curl
@@ -3879,7 +4124,7 @@ start_menu()
         green "Xray更新完成！"
     elif [ $choice -eq 10 ]; then
         ! ask_if "确定要删除吗?(y/n)" && return 0
-        [ "$redhat_package_manager" == "yum" ] && check_important_dependence_installed "" "yum-utils"
+        [ "$dnf" == "yum" ] && check_important_dependence_installed "" "yum-utils"
         check_important_dependence_installed ca-certificates ca-certificates
         check_important_dependence_installed curl curl
         remove_xray
